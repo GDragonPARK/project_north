@@ -1,0 +1,85 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1657820530742016
+GameObject:
+  serializedVersion: 6
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Component:
+  - component: {fileID: 4549138568877809}
+  - component: {fileID: 114601601565663323}
+  m_Layer: 22
+  m_Name: SeekerQueen_SpitSpawnAbility
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4549138568877809
+Transform:
+  serializedVersion: 2
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1657820530742016}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 500, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -0, z: -0}
+--- !u!114 &114601601565663323
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1657820530742016}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -179248876, guid: c1b78fa918b030faf1c1f6f6164daeb2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  m_spawnPrefab:
+  - {fileID: 1059127169165630, guid: 3c0f2b836ee419541a650a208e0f272a, type: 2}
+  m_maxSummonReached: $hud_maxsummonsreached
+  m_spawnOnAwake: 0
+  m_alertSpawnedCreature: 0
+  m_passiveAggressive: 1
+  m_spawnAtTarget: 0
+  m_minToSpawn: 1
+  m_maxToSpawn: 1
+  m_maxSpawned: 30
+  m_spawnRadius: 1
+  m_circleSpawn: 0
+  m_snapToTerrain: 0
+  m_randomYRotation: 0
+  m_spawnGroundOffset: 0.2
+  m_getSolidHeightMargin: 1000
+  m_initialSpawnDelay: 0
+  m_spawnDelay: 0
+  m_preSpawnDelay: 0
+  m_commandOnSpawn: 0
+  m_wakeUpAnimation: 0
+  m_copySkill: 0
+  m_copySkillToRandomFactor: 0
+  m_setMaxInstancesFromWeaponLevel: 0
+  m_levelUpSettings: []
+  m_targetType: 3
+  m_targetWhenPathfindingType: 1
+  m_maxTargetRange: 40
+  m_spawnEffects:
+    m_effectPrefabs: []
+  m_preSpawnEffects:
+    m_effectPrefabs: []
+  m_aoePrefab: {fileID: 0}
+  m_projectileVelocity: 10
+  m_projectileVelocityMax: 0
+  m_projectileAccuracy: 10
+  m_randomDirection: 0
+  m_randomAngleMin: 0
+  m_randomAngleMax: 0
