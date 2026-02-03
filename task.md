@@ -28,9 +28,9 @@
 - [x] 건축 모드 진입 로직 및 `InventorySystem` 자원 체크 연동
 - [x] 청사진 시스템 (Ghost Preview) 및 자원 가용 여부에 따른 색상 변경 구현
 - [x] 포인트 기반 스냅 시스템 (SnapPoint) 설계 및 거리 기반 자석 효과 구현
-- [x] 해체 시스템 (Deconstruct) 및 자원 환급 로직 구현 (오른쪽 클릭)
-- [x] 구조적 안정도 기초 (Stability Check) 구현 (지면 미접촉 시 무너짐)
-- [x] 건축 메뉴 (Building Menu) 프로토타입 UI 연동
+- [x] Implement LOD Groups for Trees <!-- id: 14 --> (Auto-added by Spawner)
+- [x] Dynamic Vegetation Spawning (Distance-based) <!-- id: 15 --> (Runtime Culling Implemented)
+- [x] Smart Player Spawner (Flat Spot Finder & Altar Alignment) <!-- id: 16 --> 프로토타입 UI 연동
 - [ ] 구조적 안정도 알고리즘 고도화 (재질별 거리 제한 등)
 
 ### 4. 데이터 및 UI (Data & UI)
