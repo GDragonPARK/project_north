@@ -13,16 +13,28 @@ public class WeaponDamageController : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        Debug.Log($"[Weapon] Hit Trigger: {other.name} (Tag: {other.tag}) (Layer: {other.gameObject.layer})");
+        // Debug.Log($"[Weapon] Hit Trigger: {other.name} (Tag: {other.tag}) (Layer: {other.gameObject.layer})");
 
-        // Check for TreeFelling script
+        // Use ClosestPoint for better precision if possible, but fallback to Transform position for now as requested
+        Vector3 hitPoint = other.ClosestPoint(transform.position);
+
+        // Priority 1: HealthSystem
+        HealthSystem health = other.GetComponent<HealthSystem>();
+        if (health == null) health = other.GetComponentInParent<HealthSystem>();
+
+        if (health != null)
+        {
+            health.TakeDamage(damage, hitPoint);
+            return;
+        }
+
+        // Priority 2: Legacy TreeFelling (if any remain without HealthSystem, though our new TreeFelling requires it)
         TreeFelling tree = other.GetComponent<TreeFelling>();
         if (tree == null) tree = other.GetComponentInParent<TreeFelling>();
 
         if (tree != null)
         {
-            Debug.Log($"[Weapon] Valid Tree Hit: {tree.name}");
-            tree.TakeDamage(damage, transform.position);
+            tree.TakeDamage(damage, hitPoint);
         }
     }
 

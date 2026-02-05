@@ -135,14 +135,27 @@ namespace Cinemachine.Editor
                      // Let's stick to default PullCameraForward
                      
                      // Optimization: collide against Default, Ground, Walls
-                     // m_CollideAgainst
-                     co.FindProperty("m_CollideAgainst").intValue = LayerMask.GetMask("Default", "Terrain", "Obstacles");
+                     // Exclude Player (Layer 3 typically, or "Player" name), Trigger, etc.
+                     // Safe approach: Everything except Player, Trigger, IgnoreRaycast
                      
-                     // Smoothing
+                     int layerMask = ~0; // All
+                     
+                     // Helper to remove layers by name if they exist
+                     int playerLayer = LayerMask.NameToLayer("Player");
+                     int triggerLayer = LayerMask.NameToLayer("Trigger");
+                     int ignoreRaycast = LayerMask.NameToLayer("Ignore Raycast");
+
+                     if (playerLayer != -1) layerMask &= ~(1 << playerLayer);
+                     if (triggerLayer != -1) layerMask &= ~(1 << triggerLayer);
+                     if (ignoreRaycast != -1) layerMask &= ~(1 << ignoreRaycast);
+
+                     co.FindProperty("m_CollideAgainst").intValue = layerMask;
+                     
+                     // Smoothing - requested 0.2
                      co.FindProperty("m_Damping").floatValue = 0.2f;
                      
                      co.ApplyModifiedProperties();
-                     Debug.Log("Added CinemachineCollider (Anti-Clipping).");
+                     Debug.Log("Added/Configured CinemachineCollider with LayerMask masking out Player/Trigger.");
                 }
 
             }

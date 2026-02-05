@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class ResourceObject : MonoBehaviour
 {
-    public ItemData dropItem;
+    public InventoryItem dropItem;
     public int health = 3;
 
     public void Gather()
@@ -22,10 +22,23 @@ public class ResourceObject : MonoBehaviour
         if (health <= 0)
         {
             Debug.Log($"{gameObject.name} destroyed. Received {(dropItem != null ? dropItem.itemName : "Item")}!");
-            if (dropItem != null && InventoryManager.Instance != null)
+            
+            if (dropItem != null)
             {
-                InventoryManager.Instance.AddItem(dropItem.itemName, 1);
+                if (InventoryManager.Instance != null)
+                {
+                    InventoryManager.Instance.AddItem(dropItem, 1);
+                }
+                else
+                {
+                    Debug.LogError("[ResourceObject] InventoryManager Instance is NULL! Cannot add item.");
+                }
             }
+            else
+            {
+                 Debug.LogWarning($"[ResourceObject] No 'Drop Item' assigned for {gameObject.name}.");
+            }
+
             Destroy(gameObject);
         }
     }
