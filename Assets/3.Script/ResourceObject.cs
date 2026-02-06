@@ -1,12 +1,20 @@
 using UnityEngine;
 
+public enum ResourceType { Tree, Rock }
+public enum ToolType { Axe, Pickaxe, None }
+
 public class ResourceObject : MonoBehaviour
 {
+    public ResourceType resourceType;
     public InventoryItem dropItem;
     public int health = 3;
 
-    public void Gather()
+    public void Gather(ToolType toolUsed)
     {
+        // Tool Validation
+        if (resourceType == ResourceType.Tree && toolUsed != ToolType.Axe) { Debug.Log("Needs an Axe!"); return; }
+        if (resourceType == ResourceType.Rock && toolUsed != ToolType.Pickaxe) { Debug.Log("Needs a Pickaxe!"); return; }
+
         if (CharacterStats.Instance != null)
         {
             if (!CharacterStats.Instance.HasEnoughStamina(10f))
@@ -14,7 +22,7 @@ public class ResourceObject : MonoBehaviour
                 Debug.Log("Not enough stamina to gather!");
                 return;
             }
-            CharacterStats.Instance.UseStamina(10f);
+            CharacterStats.Instance.UseStamina(10f); // 10 Stamina per hit
         }
 
         health--;

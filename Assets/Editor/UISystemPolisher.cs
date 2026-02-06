@@ -1,185 +1,96 @@
 using UnityEngine;
 using UnityEditor;
 using UnityEngine.UI;
+using TMPro;
 
-namespace Antigravity.Editor
+public class UISystemPolisher : EditorWindow
 {
-    public class UISystemPolisher : EditorWindow
+    [MenuItem("Antigravity/Setup Survival UI Phase 1 (Polish Layout)")]
+    public static void Setup()
     {
+        // 1. Find Canvas
+        Canvas canvas = Object.FindObjectOfType<Canvas>();
+        if (!canvas) { Debug.LogError("No Canvas Found!"); return; }
 
-
-        private static void PolishInventory()
+        // 2. Find Bars (Create if missing Container)
+        // Group them in bottom left
+        RectTransform healthBar = FindUI(canvas.transform, "HealthBar");
+        RectTransform staminaBar = FindUI(canvas.transform, "StaminaBar");
+        
+        if (healthBar && staminaBar)
         {
-            InventoryUI inventoryUI = Object.FindFirstObjectByType<InventoryUI>();
-            if (inventoryUI == null)
-            {
-                Debug.LogError("InventoryUI not found in scene!");
-                return;
-            }
-
-            if (inventoryUI.m_slotPrefab != null)
-            {
-                // We should modify the prefab asset if possible, or the scene instance if it's just a scene object.
-                // If it is a prefab, let's load it and modify.
-                string assetPath = AssetDatabase.GetAssetPath(inventoryUI.m_slotPrefab);
-                GameObject root = inventoryUI.m_slotPrefab;
-                bool isPrefab = !string.IsNullOrEmpty(assetPath);
-
-                GameObject editable = root;
-                if (isPrefab)
-                {
-                    editable = PrefabUtility.LoadPrefabContents(assetPath);
-                }
-
-                // Find Image component to replace sprite
-                Image img = editable.GetComponent<Image>();
-                if (img)
-                {
-                    // Look for a nice slot sprite
-                    // Updated path based on previous list_dir: Artsystack - Fantasy RPG GUI\ResourcesData\Sprites\components
-                    string[] guids = AssetDatabase.FindAssets("ingame_icon_slot t:Sprite"); 
-                    // "frame_01" is a guess, let's look for "slot" or "box"
-                    if (guids.Length == 0) guids = AssetDatabase.FindAssets("crafting_slot_01 t:Sprite");
-                    if (guids.Length == 0) guids = AssetDatabase.FindAssets("item_slot t:Sprite");
-                    
-                    if (guids.Length > 0)
-                    {
-                         string path = AssetDatabase.GUIDToAssetPath(guids[0]);
-                         Sprite newSprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
-                         if (newSprite)
-                         {
-                             img.sprite = newSprite;
-                             Debug.Log($"Updated Inventory Slot sprite to: {newSprite.name}");
-                         }
-                    }
-                    else
-                    {
-                        Debug.LogWarning("Could not find a suitable 'frame' or 'slot' sprite in project.");
-                    }
-                }
-
-                if (isPrefab)
-                {
-                    PrefabUtility.SaveAsPrefabAsset(editable, assetPath);
-                    PrefabUtility.UnloadPrefabContents(editable);
-                }
-            }
+            // Set Anchors to Bottom Left
+            SetupBar(healthBar, new Vector2(0,0), new Vector2(0,0), new Vector2(20, 20), new Vector2(220, 50), Color.red);
+            SetupBar(staminaBar, new Vector2(0,0), new Vector2(0,0), new Vector2(20, 60), new Vector2(220, 90), Color.yellow);
+            // Move Stamina ABOVE Health
+            
+            // Wait, overlapping?
+            // Health: y=20 to 50.
+            // Stamina: y=60 to 90.
+            // No overlap.
+            
+            // Adjust Texts
+            SetupText(healthBar, "HP: 100");
+            SetupText(staminaBar, "STAMINA: 100");
         }
 
-        private static void PolishMinimap()
+        // 3. Fix Warning Text
+        RectTransform warning = FindUI(canvas.transform, "WarningText");
+        if (warning)
         {
-            // Find script by type namespace is MapAndRadarSystem
-            // We need to use reflection or string search if we don't have the using
-            MonoBehaviour minimapScript = null;
-            var allScripts = Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
-            foreach(var s in allScripts)
-            {
-                if (s.GetType().FullName.Contains("Minimap"))
-                {
-                    minimapScript = s;
-                    break;
-                }
-            }
-
-            if (minimapScript != null)
-            {
-                // Verify it's UI
-                RectTransform rect = minimapScript.GetComponent<RectTransform>();
-                
-                // If script is on a child, find the root UI
-                if (rect == null)
-                {
-                     // Maybe the script isn't on the UI?
-                     // Let's assume there is a Canvas for the Minimap or it's part of HUD
-                     GameObject minimapUI = GameObject.Find("MinimapUI");
-                     if (minimapUI) rect = minimapUI.GetComponent<RectTransform>();
-                     else
-                     {
-                         // Try searching by name "Minimap"
-                         GameObject go = GameObject.Find("Minimap");
-                         if (go) rect = go.GetComponent<RectTransform>();
-                     }
-                }
-
-                if (rect != null)
-                {
-                    // Anchor Top Right
-                    rect.anchorMin = new Vector2(1, 1);
-                    rect.anchorMax = new Vector2(1, 1);
-                    rect.pivot = new Vector2(1, 1);
-                    rect.anchoredPosition = new Vector2(-20, -20);
-                    
-                    // FOG OF WAR CONNECTION
-                    // Find RawImage for Fog
-                    RawImage fogImg = rect.GetComponentInChildren<RawImage>();
-                    if (fogImg && fogImg.name.Contains("Fog"))
-                    {
-                        // Located, check connection
-                        FogOfWar fow = Object.FindFirstObjectByType<FogOfWar>();
-                        if (fow && fow.fogRenderTexture != null)
-                        {
-                            fogImg.texture = fow.fogRenderTexture;
-                            fogImg.color = new Color(0,0,0, 0.8f); // Darken for fog
-                            Debug.Log("Connected FogOfWar Texture to Minimap UI.");
-                        }
-                    }
-
-                    Debug.Log($"Minimap anchored to Top-Right on {rect.gameObject.name}");
-                }
-            }
+            warning.anchorMin = new Vector2(0.5f, 0.5f);
+            warning.anchorMax = new Vector2(0.5f, 0.5f);
+            warning.anchoredPosition = new Vector2(0, 150);
+            warning.sizeDelta = new Vector2(600, 100);
+            var txt = warning.GetComponent<TextMeshProUGUI>();
+            if (txt) { txt.fontSize = 40; txt.color = Color.red; txt.alignment = TextAlignmentOptions.Center; }
         }
 
-        [MenuItem("Tools/Polish UI System")]
-        public static void PolishUI()
+        Debug.Log("UI System Polished. Bars at Bottom Left.");
+    }
+
+    private static void SetupBar(RectTransform rt, Vector2 min, Vector2 max, Vector2 posMin, Vector2 posMax, Color color)
+    {
+        rt.anchorMin = min;
+        rt.anchorMax = max;
+        // rt.anchoredPosition... simpler to set sizeDelta/pos
+        rt.pivot = new Vector2(0, 0);
+        rt.anchoredPosition = posMin;
+        rt.sizeDelta = posMax - posMin; // Width/Height
+        
+        var img = rt.GetComponent<Image>();
+        if (img) img.color = color;
+    }
+
+    private static void SetupText(RectTransform parent, string defaultContent)
+    {
+        TextMeshProUGUI txt = parent.GetComponentInChildren<TextMeshProUGUI>();
+        if (!txt)
         {
-            PolishInventory();
-            PolishMinimap();
-            PolishBars();
+            GameObject t = new GameObject("ValueText");
+            t.transform.SetParent(parent, false);
+            txt = t.AddComponent<TextMeshProUGUI>();
         }
+        txt.text = defaultContent;
+        txt.fontSize = 20;
+        txt.alignment = TextAlignmentOptions.Center;
+        txt.color = Color.black;
+        
+        RectTransform rt = txt.rectTransform;
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+    }
 
-        private static void PolishBars()
+    private static RectTransform FindUI(Transform root, string name)
+    {
+        foreach(RectTransform child in root)
         {
-            // 1. Stamina UI
-            StaminaUI staminaUI = Object.FindFirstObjectByType<StaminaUI>();
-            if (staminaUI)
-            {
-               Slider slider = staminaUI.GetComponentInChildren<Slider>();
-               if (slider)
-               {
-                   ApplyBarStyle(slider, "progress_bar_bg", "vs_progress_yellow"); 
-               }
-            }
-
-            // 2. Health UI (Assuming Standard Name or Component)
-            // Often just a Slider on a Canvas named "HealthBar"
-            GameObject healthGo = GameObject.Find("HealthBar");
-            if (healthGo)
-            {
-                Slider slider = healthGo.GetComponent<Slider>();
-                if (slider) ApplyBarStyle(slider, "progress_bar_bg", "vs_progress_green");
-            }
+            if (child.name == name) return child;
+            var deep = FindUI(child, name);
+            if (deep) return deep;
         }
-
-        private static void ApplyBarStyle(Slider slider, string bgName, string fillName)
-        {
-            if (!slider) return;
-
-            // Background
-            Image bg = slider.transform.Find("Background")?.GetComponent<Image>();
-            if (bg)
-            {
-                 string[] guids = AssetDatabase.FindAssets($"{bgName} t:Sprite");
-                 if (guids.Length > 0) bg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(AssetDatabase.GUIDToAssetPath(guids[0]));
-            }
-
-            // Fill
-            Image fill = slider.fillRect.GetComponent<Image>();
-            if (fill)
-            {
-                 string[] guids = AssetDatabase.FindAssets($"{fillName} t:Sprite");
-                 if (guids.Length > 0) fill.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(AssetDatabase.GUIDToAssetPath(guids[0]));
-            }
-            Debug.Log($"Polished Bar: {slider.name}");
-        }
+        return null;
     }
 }

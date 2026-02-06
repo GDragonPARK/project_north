@@ -23,9 +23,9 @@ public class TerrainGenerator : MonoBehaviour
 
 
     [Header("4. 생성 설정 (Fixed Resolution)")]
-    public int width = 513; // Fixed for Out of Bounds Error
-    public int length = 513;
-    public int objectDensity = 2000;
+    public int width = 2049; // Huge Map
+    public int length = 2049;
+    public int objectDensity = 8000; // Increased for size
 
     private Terrain m_terrain;
     private GameObject natureRoot;

@@ -31,7 +31,7 @@ public class PlayerInteraction : MonoBehaviour
                     Debug.Log("Out of stamina!");
                     return;
                 }
-                resource.Gather();
+                resource.Gather(ToolType.None);
             }
         }
     }

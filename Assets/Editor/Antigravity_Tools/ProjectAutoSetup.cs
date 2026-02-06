@@ -19,7 +19,7 @@ public class ProjectAutoSetup : EditorWindow
         // Cinemachine.Editor.CameraSystemUpgrader.UpgradeCamera(); // Disabled to preserve manual target assignments
 
         // 3. UI System
-        Antigravity.Editor.UISystemPolisher.PolishUI();
+        UISystemPolisher.Setup();
         
         // 4. Animation Linking
         Antigravity.Editor.AnimationAutoLinker.LinkAnimations();

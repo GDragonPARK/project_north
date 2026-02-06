@@ -1,73 +1,112 @@
 using UnityEngine;
 using UnityEditor;
+using System.Collections.Generic;
 
 public class BuildingSystemSetup : EditorWindow
 {
-    [MenuItem("Tools/Setup Building System")]
+    [MenuItem("Antigravity/Setup Building System Phase 1")]
     public static void Setup()
     {
-        // 1. Create Materials
-        if (!AssetDatabase.IsValidFolder("Assets/Materials"))
-            AssetDatabase.CreateFolder("Assets", "Materials");
-
-        Material green = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        green.color = new Color(0, 1, 0, 0.5f);
-        green.SetFloat("_Surface", 1); // Transparent
-        green.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        green.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        green.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        green.SetInt("_ZWrite", 0);
-        green.renderQueue = 3000;
-        AssetDatabase.CreateAsset(green, "Assets/Materials/Ghost_Green.mat");
-
-        Material red = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        red.color = new Color(1, 0, 0, 0.5f);
-        red.SetFloat("_Surface", 1); // Transparent
-        red.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        red.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        red.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        red.SetInt("_ZWrite", 0);
-        red.renderQueue = 3000;
-        AssetDatabase.CreateAsset(red, "Assets/Materials/Ghost_Red.mat");
-
-        // 2. Create Prefabs
-        GameObject wallObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        wallObj.name = "WoodWall";
-        wallObj.transform.localScale = new Vector3(2f, 2f, 0.2f);
-        if (!AssetDatabase.IsValidFolder("Assets/Prefabs"))
-            AssetDatabase.CreateFolder("Assets", "Prefabs");
-        
-        GameObject wallPrefab = PrefabUtility.SaveAsPrefabAsset(wallObj, "Assets/Prefabs/WoodWall.prefab");
-        
-        // Ghost Prefab
-        GameObject ghostObj = GameObject.Instantiate(wallObj);
-        ghostObj.name = "WoodWall_Ghost";
-        ConstructionGhost ghostScript = ghostObj.AddComponent<ConstructionGhost>();
-        ghostScript.greenMat = green;
-        ghostScript.redMat = red;
-        // Ensure ghost doesn't have a collider that blocks raycasts or causes physics issues
-        Collider col = ghostObj.GetComponent<Collider>();
-        if (col != null) col.isTrigger = true;
-        
-        GameObject ghostPrefab = PrefabUtility.SaveAsPrefabAsset(ghostObj, "Assets/Prefabs/WoodWall_Ghost.prefab");
-
-        GameObject.DestroyImmediate(wallObj);
-        GameObject.DestroyImmediate(ghostObj);
-
-        // 3. Scene Setup
-        GameObject cam = GameObject.Find("Main Camera");
-        if (cam != null)
+        // 1. Ensure BuildingManager exists
+        BuildingManager bm = Object.FindFirstObjectByType<BuildingManager>();
+        if (bm == null)
         {
-            BuildingManager manager = cam.GetComponent<BuildingManager>();
-            if (manager == null) manager = cam.AddComponent<BuildingManager>();
-            manager.buildPrefab = wallPrefab;
-            manager.ghostPrefab = ghostPrefab;
-            manager.cam = cam.GetComponent<Camera>();
-            Debug.Log("BuildingManager attached to Main Camera.");
+            GameObject go = new GameObject("BuildingManager");
+            bm = go.AddComponent<BuildingManager>();
+            Undo.RegisterCreatedObjectUndo(go, "Create BuildingManager");
         }
 
-        AssetDatabase.SaveAssets();
-        AssetDatabase.Refresh();
-        Debug.Log("Building System Setup Completed!");
+        // 2. Find Prefabs (Heuristic search)
+        if (bm.floorPrefab == null) bm.floorPrefab = FindPrefab("Floor_Wood"); // KayKit?
+        if (bm.floorPrefab == null) bm.floorPrefab = FindPrefab("Floor");
+
+        if (bm.wallPrefab == null) bm.wallPrefab = FindPrefab("Wall_Wood");
+        if (bm.wallPrefab == null) bm.wallPrefab = FindPrefab("Wall");
+
+        // 3. Add SnapPoints if needed (Editing the Prefab asset directly is risky, instantiate wrapper?)
+        // Better: We edit the PREFAB if the user confirms, or we assume these are our custom ones.
+        // Let's trying to Find "Building_Floor" or "Building_Wall" specifically for this project.
+        
+        Debug.Log($"[BuildingSetup] Floor: {bm.floorPrefab}, Wall: {bm.wallPrefab}");
+        
+        if (bm.floorPrefab) AddSnapPoints(bm.floorPrefab);
+        if (bm.wallPrefab) AddSnapPoints(bm.wallPrefab);
+
+        Selection.activeGameObject = bm.gameObject;
+    }
+
+    private static GameObject FindPrefab(string name)
+    {
+        string[] guids = AssetDatabase.FindAssets($"{name} t:Prefab");
+        if (guids.Length > 0)
+        {
+            return AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guids[0]));
+        }
+        return null;
+    }
+
+    private static void AddSnapPoints(GameObject prefab)
+    {
+        // Load Prefab contents
+        string path = AssetDatabase.GetAssetPath(prefab);
+        GameObject contents = PrefabUtility.LoadPrefabContents(path);
+
+        // Check if SnapPoints exist
+        if (contents.GetComponentInChildren<SnapPoint>())
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+            return; // Already setup
+        }
+
+        Renderer r = contents.GetComponentInChildren<Renderer>();
+        if (r)
+        {
+            Bounds b = r.bounds; // Local bounds relative to prefab root (if root is 0,0,0)
+            
+            // Heuristic for Floor vs Wall based on bounds
+            bool isFlat = b.size.y < b.size.x && b.size.y < b.size.z;
+            
+            List<Vector3> points = new List<Vector3>();
+            Vector3 c = b.center;
+            Vector3 e = b.extents;
+
+            if (isFlat) // Floor
+            {
+                points.Add(c + new Vector3(e.x, 0, e.z));
+                points.Add(c + new Vector3(-e.x, 0, e.z));
+                points.Add(c + new Vector3(e.x, 0, -e.z));
+                points.Add(c + new Vector3(-e.x, 0, -e.z));
+                
+                // Add midpoints for chaining
+                points.Add(c + new Vector3(e.x, 0, 0));
+                points.Add(c + new Vector3(-e.x, 0, 0));
+                points.Add(c + new Vector3(0, 0, e.z));
+                points.Add(c + new Vector3(0, 0, -e.z));
+            }
+            else // Wall (Assume Z is thickness, X is width, Y is height)
+            {
+                // Bottom Corners
+                points.Add(c + new Vector3(e.x, -e.y, 0));
+                points.Add(c + new Vector3(-e.x, -e.y, 0));
+                // Top Corners
+                points.Add(c + new Vector3(e.x, e.y, 0));
+                points.Add(c + new Vector3(-e.x, e.y, 0));
+                // Sides?
+                points.Add(c + new Vector3(e.x, 0, 0));
+                points.Add(c + new Vector3(-e.x, 0, 0));
+            }
+
+            foreach (var p in points)
+            {
+                GameObject sp = new GameObject("SnapPoint");
+                sp.transform.SetParent(contents.transform);
+                sp.transform.localPosition = p;
+                sp.AddComponent<SnapPoint>();
+            }
+        }
+
+        PrefabUtility.SaveAsPrefabAsset(contents, path);
+        PrefabUtility.UnloadPrefabContents(contents);
+        Debug.Log($"[BuildingSetup] Added SnapPoints to {prefab.name}");
     }
 }

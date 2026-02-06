@@ -3,6 +3,7 @@ using UnityEngine;
 public class WeaponDamageController : MonoBehaviour
 {
     public float damage = 20f;
+    public ToolType toolType = ToolType.Axe; // Default to Axe for existing prefab
     private BoxCollider m_collider;
 
     private void Start()
@@ -15,8 +16,18 @@ public class WeaponDamageController : MonoBehaviour
     {
         // Debug.Log($"[Weapon] Hit Trigger: {other.name} (Tag: {other.tag}) (Layer: {other.gameObject.layer})");
 
-        // Use ClosestPoint for better precision if possible, but fallback to Transform position for now as requested
         Vector3 hitPoint = other.ClosestPoint(transform.position);
+
+        // Priority 0: ResourceObject (New System)
+        ResourceObject res = other.GetComponent<ResourceObject>();
+        if (res == null) res = other.GetComponentInParent<ResourceObject>();
+        
+        if (res != null)
+        {
+            res.Gather(toolType);
+            // Visual Effect?
+            return;
+        }
 
         // Priority 1: HealthSystem
         HealthSystem health = other.GetComponent<HealthSystem>();
@@ -28,13 +39,18 @@ public class WeaponDamageController : MonoBehaviour
             return;
         }
 
-        // Priority 2: Legacy TreeFelling (if any remain without HealthSystem, though our new TreeFelling requires it)
+        // Priority 2: Legacy TreeFelling
         TreeFelling tree = other.GetComponent<TreeFelling>();
         if (tree == null) tree = other.GetComponentInParent<TreeFelling>();
 
         if (tree != null)
         {
-            tree.TakeDamage(damage, hitPoint);
+            // Legacy tree might not have ResourceObject yet
+            // If it's a Tree and we are Axe, allow it.
+            if (toolType == ToolType.Axe)
+                tree.TakeDamage(damage, hitPoint);
+            else
+                Debug.Log("Wrong tool for this tree!");
         }
     }
 

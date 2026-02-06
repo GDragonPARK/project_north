@@ -130,21 +130,29 @@ public class MyPlayerController : MonoBehaviour
         m_currentStamina = Mathf.Clamp(m_currentStamina, 0, MaxStamina);
     }
 
-    /* 
-    // CONFLICT: Handled by ThirdPersonController
     private void UpdateAnimations()
     {
         if (m_animator == null) return;
 
-        float animSpeedMultiplier = (m_isRunning && m_currentStamina > 0) ? 2f : 1f;
-        m_animator.SetFloat("forward_speed", m_moveInput.y * animSpeedMultiplier);
-        m_animator.SetFloat("sideway_speed", m_moveInput.x * animSpeedMultiplier);
-        m_animator.SetBool("is_grounded", m_isGrounded);
+        // Calculate speed multiplier based on running state
+        // 0.5 = Walk, 1.0 = Run (Default), 2.0 = Sprint
+        float speedMultiplier = m_isRunning ? 2.0f : 1.0f; 
+        // Note: To get "Walk" (0.5), we probably need a Walk toggle. 
+        // For now, default is 1.0 (Run) and Sprint is 2.0. 
+        // If moveInput is small (gamepad feathering), it will naturally be < 1.0.
+
+        m_animator.SetFloat("forward_speed", m_moveInput.y * speedMultiplier);
+        m_animator.SetFloat("sideway_speed", m_moveInput.x * speedMultiplier);
+        m_animator.SetBool("IsGrounded", m_isGrounded);
+        
+        // Sync IsChopping if we had a variable for it, but currently it's likely event driven or another script
+        // For now, we only drive Locomotion params here.
     }
 
+    /*
     private void FixedUpdate()
     {
-        // Move(); // Disable RB movement
+        // Move(); // Disable RB movement as TPC handles it, or use this if TPC is removed
     }
     */
 

@@ -220,10 +220,23 @@ namespace StarterAssets
         private void Move()
         {
             // set target speed based on move speed, sprint speed and if sprint is pressed
-            float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
+            bool canSprint = _input.sprint; 
+            if (CharacterStats.Instance != null)
+            {
+               if (!CharacterStats.Instance.CanSprint()) canSprint = false;
+               
+               // Sync state for logic/UI
+               CharacterStats.Instance.isSprinting = canSprint && _input.move != Vector2.zero; // Only drain if moving
+               
+               if (CharacterStats.Instance.isSprinting)
+               {
+                   CharacterStats.Instance.UseStamina(CharacterStats.Instance.sprintCostPerSec * Time.deltaTime);
+               }
+            }
+            
+            float targetSpeed = canSprint ? SprintSpeed : MoveSpeed;
 
             // a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
-
             // note: Vector2's == operator uses approximation so is not floating point error prone, and is cheaper than magnitude
             // if there is no input, set the target speed to 0
             if (_input.move == Vector2.zero) targetSpeed = 0.0f;
@@ -398,8 +411,19 @@ namespace StarterAssets
         {
             if (_input.attack)
             {
+                if (CharacterStats.Instance != null && !CharacterStats.Instance.HasEnoughStamina(CharacterStats.Instance.actionCost))
+                {
+                    Debug.Log("Not enough stamina to attack!");
+                    _input.attack = false;
+                    return;
+                }
+
                 if (_hasAnimator)
                 {
+                    // Cost check passed logic
+                    if (CharacterStats.Instance != null) 
+                        CharacterStats.Instance.UseStamina(CharacterStats.Instance.actionCost);
+
                     _animator.SetTrigger(_animIDAttack);
                     Debug.Log("Attack Triggered!");
                 }
