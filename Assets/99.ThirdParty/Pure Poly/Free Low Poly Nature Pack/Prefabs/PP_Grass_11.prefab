@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 3395602398635085567}
   - component: {fileID: 647231015710571061}
   - component: {fileID: 1439904337943108577}
+  - component: {fileID: 5438237514795648749}
   m_Layer: 0
   m_Name: PP_Grass_11
   m_TagString: Untagged
@@ -62,6 +63,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -83,6 +86,7 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
@@ -109,3 +113,26 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: -7387926931826281997, guid: b50dd34feb8fa1b4fa5aa0a7d2271066, type: 3}
+--- !u!205 &5438237514795648749
+LODGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1439904337943108576}
+  serializedVersion: 2
+  m_LocalReferencePoint: {x: 0.0065494627, y: 0.19055639, z: -0.014693096}
+  m_Size: 0.40825734
+  m_FadeMode: 0
+  m_AnimateCrossFading: 0
+  m_LastLODIsBillboard: 0
+  m_LODs:
+  - screenRelativeHeight: 0.08
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 647231015710571061}
+  - screenRelativeHeight: 0.015
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 647231015710571061}
+  m_Enabled: 1

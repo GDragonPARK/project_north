@@ -61,15 +61,101 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -7511558181221131132, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
-      propertyPath: m_Materials.Array.data[0]
+      propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: a9c070a0db6026a40aab5a21b2001dc7, type: 2}
     - target: {fileID: 919132149155446097, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
       propertyPath: m_Name
-      value: HumanTree
+      value: Human_Tree
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -3530544826077815173}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7354078569593712348}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3889005549918921189}
   m_SourcePrefab: {fileID: 100100000, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
+--- !u!23 &4833284280422951967 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
+  m_PrefabInstance: {fileID: 6112180535335088283}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &6346620816837922250 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
+  m_PrefabInstance: {fileID: 6112180535335088283}
+  m_PrefabAsset: {fileID: 0}
+--- !u!205 &-3530544826077815173
+LODGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6346620816837922250}
+  serializedVersion: 2
+  m_LocalReferencePoint: {x: -0.000025570393, y: 1.8216915, z: -0.00005096197}
+  m_Size: 3.643383
+  m_FadeMode: 0
+  m_AnimateCrossFading: 0
+  m_LastLODIsBillboard: 0
+  m_LODs:
+  - screenRelativeHeight: 0.08
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 4833284280422951967}
+  - screenRelativeHeight: 0.015
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 4833284280422951967}
+  m_Enabled: 1
+--- !u!114 &7354078569593712348
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6346620816837922250}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6dc124943d70c846bc0807e19a0c016, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ResourceNode
+  maxHealth: 100
+  currentHealth: 0
+  hitParticlePrefab: {fileID: 0}
+  visualModel: {fileID: 0}
+  wobbleIntensity: 5
+  fallingTreePrefab: {fileID: 0}
+  fallForce: 500
+  lootPrefab: {fileID: 1016169586911697, guid: b83e7bb133111a34482ad428e7a87d8e, type: 3}
+  lootAmount: 3
+--- !u!136 &3889005549918921189
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6346620816837922250}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5
+  m_Height: 5
+  m_Direction: 1
+  m_Center: {x: 0, y: 2.5, z: 0}

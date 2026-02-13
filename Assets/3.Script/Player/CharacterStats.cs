@@ -27,8 +27,25 @@ public class CharacterStats : MonoBehaviour
 
     void Awake()
     {
-        if (Instance == null) Instance = this;
-        else if (Instance != this) Destroy(gameObject);
+        if (Instance == null) 
+        {
+            Instance = this;
+        }
+        else if (Instance != this) 
+        {
+            // Fix: Do NOT destroy the GameObject. This causes the player to disappear.
+            // If this is Player_New, it should probably take precedence or at least not die.
+            if (gameObject.name == "Player_New")
+            {
+                Debug.LogWarning($"[CharacterStats] Overwriting Instance with {gameObject.name}");
+                Instance = this; // Take over
+            }
+            else
+            {
+                Debug.LogWarning($"[CharacterStats] Duplicate detected on {gameObject.name}. Destroying COMPONENT only.");
+                Destroy(this); // Only destroy the script, not the object
+            }
+        }
         
         currentHealth = maxHealth;
         currentStamina = maxStamina;

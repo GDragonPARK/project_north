@@ -26,9 +26,13 @@ public class TooltipUI : MonoBehaviour
     {
         if (tooltipPanel.activeSelf)
         {
-            Vector2 mousePos = Input.mousePosition;
-            // Offset slightly from cursor
-            m_rectTransform.position = mousePos + new Vector2(15, -15);
+            // Fix: Use New Input System for mouse position
+            if (UnityEngine.InputSystem.Mouse.current != null)
+            {
+                Vector2 mousePos = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
+                // Offset slightly from cursor
+                m_rectTransform.position = mousePos + new Vector2(15, -15);
+            }
         }
     }
 

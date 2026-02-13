@@ -164,12 +164,69 @@ namespace StarterAssets
             GroundedCheck();
             Move();
             AttackCheck();
+            QuickSlotInput();
         }
 
         private void LateUpdate()
         {
             CameraRotation();
         }
+
+        [Header("QuickSlots")]
+        public ItemData[] quickSlots = new ItemData[4];
+        public int currentQuickSlot = -1;
+
+        private void QuickSlotInput()
+        {
+            if (Keyboard.current == null) return;
+
+            if (Keyboard.current.digit1Key.wasPressedThisFrame) SelectQuickSlot(0);
+            if (Keyboard.current.digit2Key.wasPressedThisFrame) SelectQuickSlot(1);
+            if (Keyboard.current.digit3Key.wasPressedThisFrame) SelectQuickSlot(2);
+            if (Keyboard.current.digit4Key.wasPressedThisFrame) SelectQuickSlot(3);
+        }
+
+        public void AddQuickSlot(ItemData item)
+        {
+            // Find first empty or replace first?
+            for (int i = 0; i < quickSlots.Length; i++)
+            {
+                if (quickSlots[i] == null)
+                {
+                    quickSlots[i] = item;
+                    if (QuickSlotUI.Instance) QuickSlotUI.Instance.UpdateQuickSlotUI(quickSlots);
+                    return;
+                }
+            }
+            // If all full, replace first
+            quickSlots[0] = item;
+            if (QuickSlotUI.Instance) QuickSlotUI.Instance.UpdateQuickSlotUI(quickSlots);
+        }
+
+        public void SelectQuickSlot(int index)
+        {
+            currentQuickSlot = index;
+            if (QuickSlotUI.Instance) QuickSlotUI.Instance.HighlightSlot(index);
+            
+            if (quickSlots[index] != null)
+            {
+                EquipItem(quickSlots[index]);
+            }
+        }
+
+        public void EquipItem(ItemData item)
+        {
+            Debug.Log($"Equipping: {item.itemName}");
+            // Handle equipment visuals via PlayerEquipmentManager if available
+            PlayerEquipmentManager equipment = GetComponent<PlayerEquipmentManager>();
+            if (equipment != null)
+            {
+                if (item.itemName.Contains("Axe")) equipment.EquipAxe();
+                else if (item.itemName.Contains("Pickaxe")) equipment.EquipPickaxe();
+                // Add more as needed
+            }
+        }
+
 
         private void AssignAnimationIDs()
         {
@@ -329,6 +386,9 @@ namespace StarterAssets
                     {
                         _animator.SetBool(_animIDJump, true);
                     }
+                    
+                    // Force reset jump input to prevent infinite jumping
+                    _input.jump = false;
                 }
 
                 // jump timeout
@@ -364,6 +424,20 @@ namespace StarterAssets
             if (_verticalVelocity < _terminalVelocity)
             {
                 _verticalVelocity += Gravity * Time.deltaTime;
+            }
+
+            // EMERGENCY: Clamp vertical velocity to prevent infinite rise/fall
+            _verticalVelocity = Mathf.Clamp(_verticalVelocity, -50f, 50f);
+
+            // EMERGENCY LANDING: If player is too high and not grounded, force landing
+            if (transform.position.y > 100f && !Grounded)
+            {
+                Debug.LogWarning("[ThirdPersonController] EMERGENCY LANDING ACTIVATED! Player Y > 100, forcing grounding.");
+                _verticalVelocity = 0f;
+                // Teleport player to safe height
+                Vector3 safePosition = transform.position;
+                safePosition.y = 10f;
+                transform.position = safePosition;
             }
         }
 
@@ -424,8 +498,16 @@ namespace StarterAssets
                     if (CharacterStats.Instance != null) 
                         CharacterStats.Instance.UseStamina(CharacterStats.Instance.actionCost);
 
-                    _animator.SetTrigger(_animIDAttack);
-                    Debug.Log("Attack Triggered!");
+                    if (CurrentWeapon && CurrentWeapon.toolType == ToolType.Axe)
+                    {
+                         _animator.SetTrigger("TriggerHarvest");
+                         Debug.Log("Harvest (Chop) Triggered!");
+                    }
+                    else
+                    {
+                        _animator.SetTrigger(_animIDAttack);
+                        Debug.Log("Attack Triggered!");
+                    }
                 }
                 _input.attack = false; // Reset input immediately
             }

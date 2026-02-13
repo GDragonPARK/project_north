@@ -23,13 +23,14 @@ public class CameraInputBridge : MonoBehaviour
 
     private float GetAxisCustom(string axisName)
     {
-        if (_input == null) return UnityEngine.Input.GetAxis(axisName);
+        // Fix: Avoid UnityEngine.Input.GetAxis in New Input System
+        if (_input == null) return 0f;
 
         // Map "Mouse X" / "Mouse Y" which Cinemachine asks for by default
         // to our Input System vector
         if (axisName == "Mouse X") return _input.look.x; 
         if (axisName == "Mouse Y") return _input.look.y;
 
-        return UnityEngine.Input.GetAxis(axisName);
+        return 0f;
     }
 }

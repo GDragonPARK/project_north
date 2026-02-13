@@ -25,8 +25,19 @@ public class WeaponDamageController : MonoBehaviour
         if (res != null)
         {
             res.Gather(toolType);
-            // Visual Effect?
             return;
+        }
+
+        // Priority 0.5: ResourceNode (New Tree System)
+        ResourceNode node = other.GetComponent<ResourceNode>();
+        if (node == null) node = other.GetComponentInParent<ResourceNode>();
+        
+        if (node != null)
+        {
+             // Calculate direction from player/weapon to hit point
+             Vector3 dir = (hitPoint - transform.position).normalized;
+             node.GetHit(damage, hitPoint, dir);
+             return;
         }
 
         // Priority 1: HealthSystem

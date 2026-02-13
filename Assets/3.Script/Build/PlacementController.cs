@@ -74,12 +74,15 @@ public class PlacementController : MonoBehaviour
     private void HandleRotation()
     {
         // Mouse Wheel to rotate
-        float scroll = Input.mouseScrollDelta.y;
-        if (Mathf.Abs(scroll) > 0.1f)
+        if (UnityEngine.InputSystem.Mouse.current != null)
         {
-            currentRotationY += scroll * 22.5f; // Snap to 22.5 degrees like Valheim
+             float scroll = UnityEngine.InputSystem.Mouse.current.scroll.ReadValue().y;
+             if (Mathf.Abs(scroll) > 0.1f)
+             {
+                 currentRotationY += scroll * 22.5f; // Snap
+                 ghostObject.transform.rotation = Quaternion.Euler(0, currentRotationY, 0);
+             }
         }
-        ghostObject.transform.rotation = Quaternion.Euler(0, currentRotationY, 0);
     }
 
     private void HandlePlacementPosition()
@@ -111,7 +114,7 @@ public class PlacementController : MonoBehaviour
 
     private void HandleClick()
     {
-        if (Input.GetMouseButtonDown(0))
+        if (UnityEngine.InputSystem.Mouse.current != null && UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
         {
             // Place
             Instantiate(currentPrefab, ghostObject.transform.position, ghostObject.transform.rotation);

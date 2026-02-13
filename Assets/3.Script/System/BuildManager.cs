@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.InputSystem;
 
 public class BuildManager : MonoBehaviour
 {
@@ -32,7 +33,7 @@ public class BuildManager : MonoBehaviour
         if (player == null) return;
 
         // Toggle building mode (Key B)
-        if (Input.GetKeyDown(KeyCode.B))
+        if (Keyboard.current.bKey.wasPressedThisFrame)
         {
             ToggleBuildMode();
         }
@@ -43,13 +44,13 @@ public class BuildManager : MonoBehaviour
             UpdateGhost();
             
             // Build (LMB)
-            if (Input.GetMouseButtonDown(0))
+            if (Mouse.current.leftButton.wasPressedThisFrame)
             {
                 TryPlaceObject();
             }
 
             // Deconstruct (RMB)
-            if (Input.GetMouseButtonDown(1))
+            if (Mouse.current.rightButton.wasPressedThisFrame)
             {
                 TryDeconstruct();
             }
@@ -76,9 +77,9 @@ public class BuildManager : MonoBehaviour
 
     private void HandleRotation()
     {
-        if (Input.GetKey(KeyCode.E)) m_currentRotation += 150f * Time.deltaTime;
-        if (Input.GetKey(KeyCode.Q)) m_currentRotation -= 150f * Time.deltaTime;
-        if (Input.GetKeyDown(KeyCode.R)) m_currentRotation = Mathf.Round(m_currentRotation / 90f) * 90f;
+        if (Keyboard.current.eKey.isPressed) m_currentRotation += 150f * Time.deltaTime;
+        if (Keyboard.current.qKey.isPressed) m_currentRotation -= 150f * Time.deltaTime;
+        if (Keyboard.current.rKey.wasPressedThisFrame) m_currentRotation = Mathf.Round(m_currentRotation / 90f) * 90f;
     }
 
     private void UpdateGhost()

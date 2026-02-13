@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 3730752802815293747}
   - component: {fileID: 1450929432033873401}
   - component: {fileID: 1090505329258949675}
+  - component: {fileID: 6115752328991315176}
   m_Layer: 0
   m_Name: PP_Rock_Pile_Forest_Moss_05
   m_TagString: Untagged
@@ -62,6 +63,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -83,6 +86,7 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
@@ -109,3 +113,26 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: -7011766824195413768, guid: b0ba9b7cecd675b45894beca57389899, type: 3}
+--- !u!205 &6115752328991315176
+LODGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1090505329258949676}
+  serializedVersion: 2
+  m_LocalReferencePoint: {x: 0.15476751, y: 2.7871866, z: -0.13653755}
+  m_Size: 5.5743732
+  m_FadeMode: 0
+  m_AnimateCrossFading: 0
+  m_LastLODIsBillboard: 0
+  m_LODs:
+  - screenRelativeHeight: 0.08
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 1450929432033873401}
+  - screenRelativeHeight: 0.015
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 1450929432033873401}
+  m_Enabled: 1

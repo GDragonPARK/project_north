@@ -12,6 +12,8 @@ GameObject:
   - component: {fileID: 4894925909455266758}
   - component: {fileID: 7208770312383436556}
   - component: {fileID: 9154215057541871320}
+  - component: {fileID: -8726583641056853486}
+  - component: {fileID: 7610513081093363654}
   m_Layer: 0
   m_Name: PP_Birch_Tree_05
   m_TagString: Untagged
@@ -62,6 +64,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -83,6 +87,7 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
@@ -109,3 +114,47 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: -808811649734903215, guid: d721af70c8ba1ab4daa81f30de0dbb54, type: 3}
+--- !u!205 &-8726583641056853486
+LODGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9154215057541871321}
+  serializedVersion: 2
+  m_LocalReferencePoint: {x: -0.080792665, y: 4.1261764, z: -0.44625235}
+  m_Size: 8.252353
+  m_FadeMode: 0
+  m_AnimateCrossFading: 0
+  m_LastLODIsBillboard: 0
+  m_LODs:
+  - screenRelativeHeight: 0.08
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 7208770312383436556}
+  - screenRelativeHeight: 0.015
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 7208770312383436556}
+  m_Enabled: 1
+--- !u!114 &7610513081093363654
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9154215057541871321}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6dc124943d70c846bc0807e19a0c016, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ResourceNode
+  maxHealth: 100
+  currentHealth: 0
+  hitParticlePrefab: {fileID: 0}
+  visualModel: {fileID: 0}
+  wobbleIntensity: 5
+  fallingTreePrefab: {fileID: 0}
+  fallForce: 500
+  lootPrefab: {fileID: 1016169586911697, guid: b83e7bb133111a34482ad428e7a87d8e, type: 3}
+  lootAmount: 3

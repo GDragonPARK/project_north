@@ -45,11 +45,14 @@ public class EnvironmentSetupTool : EditorWindow
         }
 
         // Tree
-        AssignPrefab(generator, ref generator.treePrefab, "PineTree", "Tree");
+        // Fix for CS1061: treePrefab -> treePrefabs (List)
+        if (generator.treePrefabs == null) generator.treePrefabs = new System.Collections.Generic.List<GameObject>();
+        AddPrefabToList(generator.treePrefabs, "PineTree", "Tree");
+
         // Rock
-        AssignPrefab(generator, ref generator.rockPrefab, "Rock_7", "Rock");
+        AssignPrefab(ref generator.rockPrefab, "Rock_7", "Rock");
         // Grass
-        AssignPrefab(generator, ref generator.grassPrefab, "Grass_Cluster", "Grass");
+        AssignPrefab(ref generator.grassPrefab, "Grass_Cluster", "Grass");
 
         // 4. Lighting Setup
         SetupLighting();
@@ -62,7 +65,7 @@ public class EnvironmentSetupTool : EditorWindow
         Selection.activeGameObject = envManager;
     }
 
-    private static void AssignPrefab(TerrainGenerator gen, ref GameObject targetField, string specificName, string genericName)
+    private static void AssignPrefab(ref GameObject targetField, string specificName, string genericName)
     {
         string[] guids = AssetDatabase.FindAssets($"{specificName} t:Prefab");
         if (guids.Length == 0) guids = AssetDatabase.FindAssets($"{genericName} t:Prefab");
@@ -70,6 +73,21 @@ public class EnvironmentSetupTool : EditorWindow
         if (guids.Length > 0)
         {
             targetField = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guids[0]));
+        }
+    }
+
+    private static void AddPrefabToList(System.Collections.Generic.List<GameObject> list, string specificName, string genericName)
+    {
+        string[] guids = AssetDatabase.FindAssets($"{specificName} t:Prefab");
+        if (guids.Length == 0) guids = AssetDatabase.FindAssets($"{genericName} t:Prefab");
+
+        if (guids.Length > 0)
+        {
+            GameObject go = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guids[0]));
+            if (go != null && !list.Contains(go))
+            {
+                list.Add(go);
+            }
         }
     }
 

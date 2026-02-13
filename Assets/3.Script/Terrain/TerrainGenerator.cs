@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -16,7 +17,9 @@ public class TerrainGenerator : MonoBehaviour
     public float frequency = 0.012f; // Smoother
 
     [Header("2. 심을 물건들 (Prefabs)")]
-    public GameObject treePrefab;
+    public List<GameObject> treePrefabs = new List<GameObject>(); 
+    public List<GameObject> flowerPrefabs = new List<GameObject>(); // Added
+    public List<GameObject> shrubPrefabs = new List<GameObject>(); // Added
     public GameObject rockPrefab;
     public GameObject grassPrefab;
 
@@ -25,7 +28,7 @@ public class TerrainGenerator : MonoBehaviour
     [Header("4. 생성 설정 (Fixed Resolution)")]
     public int width = 2049; // Huge Map
     public int length = 2049;
-    public int objectDensity = 8000; // Increased for size
+    public int objectDensity = 30000; // Optimized Density
 
     private Terrain m_terrain;
     private GameObject natureRoot;
@@ -33,6 +36,15 @@ public class TerrainGenerator : MonoBehaviour
     // Ghibli Textures
     public Texture2D rockTexture;
     public Texture2D grassTexture;
+
+    [ContextMenu("Generate Terrain")] 
+    public void Start()
+    {
+        if (Application.isPlaying)
+        {
+            StartCoroutine(DelayedSafetyProc());
+        }
+    }
 
     [ContextMenu("Generate Terrain")] 
     public void GenerateTerrain()
@@ -63,12 +75,144 @@ public class TerrainGenerator : MonoBehaviour
         // 3. Texture Splatmap (Rock vs Grass)
         ApplyTextures(heights);
 
-        // 4. Object Spawning is now handled by VegetationSpawner mostly, 
-        // but if we keep it here as a backup/companion:
-        // SpawnObjects(heights); 
-        // User asked to clean legacy, but VegetationSpawner is separate. 
-        // Let's rely on VegetationSpawner for vegetation.
-        Debug.Log("Ghibli Terrain Generated!");
+        // 4. Spawn Objects (Vegetation)
+        SpawnObjects(heights); 
+        // 5. Optimization & Rescue
+        EnableGPUInstancing();
+
+        if (Application.isPlaying)
+        {
+            StartCoroutine(DelayedSafetyProc());
+        }
+        else
+        {
+            TeleportPlayerSafe();
+            SetupCamera();
+        }
+
+        Debug.Log("Ghibli Terrain Generated & Optimized!");
+    }
+
+    // --- Post-Generation Logic (Delay) ---
+    private IEnumerator DelayedSafetyProc()
+    {
+        yield return new WaitForSeconds(0.5f); // Wait for physics settle
+        TeleportPlayerSafe();
+        SetupCamera();
+    }
+
+    private void TeleportPlayerSafe()
+    {
+        // 1. Prioritize finding Player_New (Active or Inactive)
+        GameObject player = null;
+        
+        // Try to find active first
+        player = GameObject.Find("Player_New");
+        
+        if (player == null)
+        {
+            // Try to find inactive Player_New
+            Transform[] allTransforms = Resources.FindObjectsOfTypeAll<Transform>();
+            foreach (Transform t in allTransforms)
+            {
+                if (t.hideFlags != HideFlags.None) continue;
+                if (t.name == "Player_New")
+                {
+                    player = t.gameObject;
+                    break;
+                }
+            }
+        }
+
+        // If still no Player_New, fallback to Tag "Player" ONLY if explicitly enabled or standard name
+        if (player == null)
+        {
+             player = GameObject.FindGameObjectWithTag("Player");
+        }
+
+        if (player)
+        {
+            player.SetActive(true);
+            
+            if (m_terrain == null) m_terrain = GetComponent<Terrain>();
+            
+            // Safe Zone (Center of Terrain)
+            float x = width / 2f; 
+            float z = length / 2f;
+            float y = (m_terrain != null) ? m_terrain.SampleHeight(new Vector3(x, 0, z)) + transform.position.y + 1f : transform.position.y + 1f;
+
+            // Reset Physics
+            CharacterController cc = player.GetComponent<CharacterController>();
+            Rigidbody rb = player.GetComponent<Rigidbody>();
+            
+            if (cc) cc.enabled = false;
+            if (rb) 
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.isKinematic = true; // Temporary lock?
+            }
+
+            player.transform.position = new Vector3(x, y, z);
+            
+            if (cc) cc.enabled = true;
+            if (rb) rb.isKinematic = false;
+
+            Debug.Log($"[Terrain] Player '{player.name}' Teleported to Safety: {player.transform.position}");
+        }
+    }
+
+    private void SetupCamera()
+    {
+        GameObject player = GameObject.Find("Player_New") ?? GameObject.FindGameObjectWithTag("Player");
+        if (!player) return;
+
+        Cinemachine.CinemachineFreeLook vcam = FindObjectOfType<Cinemachine.CinemachineFreeLook>();
+        if (vcam)
+        {
+            vcam.Follow = player.transform;
+            vcam.LookAt = player.transform;
+            Debug.Log("[Terrain] Camera Target Reset.");
+        }
+    }
+
+    private void EnableGPUInstancing()
+    {
+        Renderer[] rends = transform.GetComponentsInChildren<Renderer>();
+        foreach(Renderer r in rends)
+        {
+            foreach(Material m in r.sharedMaterials)
+            {
+                if(m && !m.enableInstancing) 
+                {
+                    m.enableInstancing = true;
+                }
+            }
+        }
+    }
+    private void SpawnObjects(float[,] heights)
+    {
+        // Redirect to VegetationSpawner for centralized management
+        VegetationSpawner vs = GetComponent<VegetationSpawner>();
+        if (vs == null) vs = FindObjectOfType<VegetationSpawner>(); // Use standard find, as instructed by user fix logic
+
+        if (vs != null)
+        {
+            // Sync lists if user dragged prefabs to TerrainGenerator inspector instead of Spawner
+            if (treePrefabs.Count > 0 && vs.treePrefabs.Count == 0) vs.treePrefabs.AddRange(treePrefabs);
+            if (flowerPrefabs.Count > 0 && vs.flowerPrefabs.Count == 0) vs.flowerPrefabs.AddRange(flowerPrefabs);
+            if (shrubPrefabs.Count > 0 && vs.shrubPrefabs.Count == 0) vs.shrubPrefabs.AddRange(shrubPrefabs);
+
+            if (shrubPrefabs.Count > 0 && vs.shrubPrefabs.Count == 0) vs.shrubPrefabs.AddRange(shrubPrefabs);
+
+            // Trigger Full World Spawning
+            Physics.SyncTransforms(); // Force collider update
+            vs.SpawnFullWorld(width, length, objectDensity);
+        }
+        else
+        {
+            Debug.LogWarning("[TerrainGenerator] VegetationSpawner not found! Cannot spawn objects.");
+        }
     }
 
     private float[,] CalculateHeights()
@@ -101,20 +245,31 @@ public class TerrainGenerator : MonoBehaviour
 
     private void ApplyTextures(float[,] heights)
     {
-        if (rockTexture == null || grassTexture == null) 
+        // 1. Try to load persistent layers first
+        string layerPath = "Assets/Settings/TerrainLayers";
+        TerrainLayer rockLayer = null;
+        TerrainLayer grassLayer = null;
+
+#if UNITY_EDITOR
+        rockLayer = AssetDatabase.LoadAssetAtPath<TerrainLayer>(layerPath + "/Layer_Rock.terrainlayer");
+        grassLayer = AssetDatabase.LoadAssetAtPath<TerrainLayer>(layerPath + "/Layer_Grass.terrainlayer");
+#endif
+
+        // 2. Fallback to inspector properties if persistent layers missing
+        if (rockLayer == null && rockTexture != null)
         {
-            Debug.LogWarning("Assign Rock and Grass textures in Inspector!");
-            return;
+             rockLayer = new TerrainLayer { diffuseTexture = rockTexture, tileSize = new Vector2(3, 3) };
+        }
+        if (grassLayer == null && grassTexture != null)
+        {
+             grassLayer = new TerrainLayer { diffuseTexture = grassTexture, tileSize = new Vector2(3, 3) };
         }
 
-        TerrainLayer rockLayer = new TerrainLayer { 
-            diffuseTexture = rockTexture, 
-            tileSize = new Vector2(3, 3) 
-        };
-        TerrainLayer grassLayer = new TerrainLayer { 
-            diffuseTexture = grassTexture, 
-            tileSize = new Vector2(3, 3) 
-        };
+        if (rockLayer == null || grassLayer == null)
+        {
+            Debug.LogWarning("Terrain Layers missing! Run 'Antigravity > FINAL FIX' menu item.");
+            return;
+        }
 
         m_terrain.terrainData.terrainLayers = new TerrainLayer[] { rockLayer, grassLayer };
 

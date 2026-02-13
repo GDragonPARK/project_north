@@ -63,10 +63,11 @@ public class MyPlayerController : MonoBehaviour
 
     private void Update()
     {
-        CheckGround();
+        // CheckGround(); // DISABLED: Conflicts with ThirdPersonController grounding logic
         CheckEnvironment(); // New environmental check
         HandleStamina();
         // UpdateAnimations();
+
         
         // Clamp current stats to new dynamic max (e.g. as food wears off)
         m_currentHealth = Mathf.Min(m_currentHealth, MaxHealth);

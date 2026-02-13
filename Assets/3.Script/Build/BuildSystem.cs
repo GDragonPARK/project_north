@@ -18,8 +18,9 @@ public class BuildSystem : MonoBehaviour
         // bool hasHammer = InventoryManager.Instance.IsEquipped(hammerItemId); 
         bool hasHammer = true; // Debug placeholder
 
-        if (hasHammer && Input.GetKeyDown(toggleBuildKey))
+        if (hasHammer && UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current[UnityEngine.InputSystem.Key.B].wasPressedThisFrame)
         {
+            // Assuming B key for now or map KeyCode to Key if needed
             ToggleBuildMode();
         }
 
