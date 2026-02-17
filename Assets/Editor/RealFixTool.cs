@@ -25,7 +25,7 @@ public class RealFixTool : EditorWindow
         
         if (stats.staminaBar == null)
         {
-            var bars = Resources.FindObjectsOfTypeAll<Image>();
+            var bars = Object.FindObjectsByType<Image>(FindObjectsSortMode.None);
             foreach(var b in bars)
             {
                 if (b.name == "StaminaBar" || b.name == "StaminaGauge" || (b.name == "Fill" && b.transform.parent.name.Contains("Stamina")))
@@ -97,7 +97,9 @@ public class RealFixTool : EditorWindow
         }
         
         // Assign Prefabs (Try to load common ones)
+        /* LEGACY: BuildingManager no longer holds floorPrefab directly
         if (!bm.floorPrefab) bm.floorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Floor.prefab"); 
+        */
         // ... (others requires actual path)
         
         // Fix B Key Logic Requirement?

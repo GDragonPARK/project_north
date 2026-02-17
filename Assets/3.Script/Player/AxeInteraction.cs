@@ -32,7 +32,18 @@ public class AxeInteraction : MonoBehaviour
 
         if (node != null)
         {
-            Vector3 hitPoint = other.ClosestPoint(transform.position);
+            Vector3 hitPoint = transform.position;
+            
+            // Safety Check
+            if (other is MeshCollider mc && !mc.convex)
+            {
+                hitPoint = other.bounds.ClosestPoint(transform.position);
+            }
+            else
+            {
+                hitPoint = other.ClosestPoint(transform.position);
+            }
+
             Vector3 dir = (hitPoint - transform.position).normalized;
             
             Debug.Log($"[Axe] Tree Hit! Damage: {damage}");

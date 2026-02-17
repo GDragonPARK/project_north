@@ -24,8 +24,23 @@ public class FallenLog : MonoBehaviour
                 Vector3 offset = new Vector3(Random.Range(-0.5f, 0.5f), 0.5f, Random.Range(-0.5f, 0.5f));
                 GameObject loot = Instantiate(lootPrefab, transform.position + offset, Quaternion.identity);
                 
-                // FORCE LAYER to "Item"
-                loot.layer = LayerMask.NameToLayer("Item");
+                // Inject Force Interaction Logic
+                loot.AddComponent<ForceInteractionSetup>();
+                
+                // FORCE LAYER to "Item" (Layer 10)
+                loot.layer = 10;
+
+                // INJECT AUTO-PICKUP (The Missing Link)
+                PickupItem pickup = loot.GetComponent<PickupItem>();
+                if (pickup == null) pickup = loot.AddComponent<PickupItem>();
+                
+                // INJECT ITEM DATA (DNA)
+                if (pickup.itemData == null)
+                {
+                    pickup.itemData = Resources.Load<ItemData>("Items/Wood");
+                }
+
+                // Debug.Log($"[FallenLog] Spawned {loot.name} with PickupItem & Data");
 
                 // PRE-ADD GlowFilter (Disabled)
                 var glow = loot.GetComponent<ChocDino.UIFX.GlowFilter>();

@@ -13,6 +13,7 @@ namespace StarterAssets
 		public bool jump;
 		public bool sprint;
 		public bool attack;
+		public bool interact;
 
 		[Header("Movement Settings")]
 		public bool analogMovement;
@@ -49,6 +50,17 @@ namespace StarterAssets
 		{
 			AttackInput(value.isPressed);
 		}
+
+		public void OnInteract(InputValue value)
+		{
+			InteractInput(value.isPressed);
+		}
+
+		// Fallback for SendMessage if InputValue is not passed
+		public void OnInteract()
+		{
+			InteractInput(true);
+		}
 #endif
 
 
@@ -75,6 +87,12 @@ namespace StarterAssets
 		public void AttackInput(bool newAttackState)
 		{
 			attack = newAttackState;
+		}
+
+		public void InteractInput(bool newInteractState)
+		{
+			if (newInteractState) Debug.Log("[Input] Interact Key Pressed!");
+			interact = newInteractState;
 		}
 
 		private void OnApplicationFocus(bool hasFocus)

@@ -26,7 +26,7 @@ public class EnvironmentFixer : EditorWindow
         }
 
         // 2. Fix Pink Terrain
-        TerrainGenerator tg = Object.FindObjectOfType<TerrainGenerator>();
+        TerrainGenerator tg = Object.FindFirstObjectByType<TerrainGenerator>();
         if (tg)
         {
             // Check Textures

@@ -12,7 +12,7 @@ public class TreeSystemSetup : EditorWindow
     {
         // Find existing tree prefabs in the project
         string[] guids = AssetDatabase.FindAssets("t:GameObject Tree");
-        GameObject woodPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/valheim_Data/GameElements/Items/materials/Wood.prefab");
+        GameObject woodPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Wood.prefab");
 
         if (woodPrefab == null)
         {

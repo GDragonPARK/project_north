@@ -31,7 +31,7 @@ public class WorkbenchSystemSetup : EditorWindow
         }
 
         // 2. Assign to BuildingManager
-        BuildingManager bm = Object.FindFirstObjectByType<BuildingManager>();
+        /* LEGACY: BuildingManager no longer holds workbenchPrefab directly
         if (bm)
         {
             Undo.RecordObject(bm, "Assign Workbench");
@@ -42,12 +42,13 @@ public class WorkbenchSystemSetup : EditorWindow
         {
             Debug.LogError("BuildingManager not found!");
         }
+        */
 
         // 3. Create Warning Text
-        SetupWarningUI(bm);
+        SetupWarningUI();
     }
 
-    private static void SetupWarningUI(BuildingManager bm)
+    private static void SetupWarningUI()
     {
         Canvas canvas = Object.FindFirstObjectByType<Canvas>();
         if (!canvas) 
@@ -81,10 +82,12 @@ public class WorkbenchSystemSetup : EditorWindow
             Undo.RegisterCreatedObjectUndo(go, "Create WarningText");
         }
 
+        /* LEGACY: BuildingManager no longer holds warningText directly
         if (bm && txt)
         {
             bm.warningText = txt;
             EditorUtility.SetDirty(bm);
         }
+        */
     }
 }

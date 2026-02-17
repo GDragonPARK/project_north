@@ -14,6 +14,19 @@ public class QuickSlotUI : MonoBehaviour
         else Destroy(gameObject);
     }
 
+    private void Start()
+    {
+        // Anchor Adjustment (Top-Left)
+        RectTransform rt = GetComponent<RectTransform>();
+        if (rt != null)
+        {
+            rt.anchorMin = new Vector2(0, 1);
+            rt.anchorMax = new Vector2(0, 1);
+            rt.pivot = new Vector2(0, 1);
+            rt.anchoredPosition = new Vector2(50, -50); // Move slightly more inward
+        }
+    }
+
     public void UpdateQuickSlotUI(ItemData[] slot)
     {
         Debug.Log("UpdateQuickSlotUI 함수 진입 성공!");

@@ -21,7 +21,7 @@ public class EnvironmentOverhaulSetup : EditorWindow
         }
 
         // 2. Spawn 200 Grass Clusters
-        VegetationSpawner spawner = GameObject.FindObjectOfType<VegetationSpawner>();
+        VegetationSpawner spawner = Object.FindFirstObjectByType<VegetationSpawner>();
         if (spawner == null) spawner = new GameObject("FinalVegSpawner").AddComponent<VegetationSpawner>();
         spawner.grassCount = 200;
         spawner.areaSize = new Vector3(100, 0, 100);

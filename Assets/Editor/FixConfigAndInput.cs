@@ -17,7 +17,7 @@ public class FixConfigAndInput : EditorWindow
         Debug.Log("Attached CameraInputBridge.");
 
         // 2. Cinemachine Check
-        var frees = FindObjectsOfType<CinemachineFreeLook>();
+        var frees = Object.FindObjectsByType<CinemachineFreeLook>(FindObjectsSortMode.None);
         foreach(var fl in frees)
         {
             // Remove InputProvider if it exists to avoid conflict? 

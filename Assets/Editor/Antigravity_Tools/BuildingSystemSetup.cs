@@ -16,21 +16,18 @@ public class BuildingSystemSetup : EditorWindow
             Undo.RegisterCreatedObjectUndo(go, "Create BuildingManager");
         }
 
-        // 2. Find Prefabs (Heuristic search)
+        /* LEGACY: BuildingManager structure changed in Step 1
         if (bm.floorPrefab == null) bm.floorPrefab = FindPrefab("Floor_Wood"); // KayKit?
         if (bm.floorPrefab == null) bm.floorPrefab = FindPrefab("Floor");
 
         if (bm.wallPrefab == null) bm.wallPrefab = FindPrefab("Wall_Wood");
         if (bm.wallPrefab == null) bm.wallPrefab = FindPrefab("Wall");
 
-        // 3. Add SnapPoints if needed (Editing the Prefab asset directly is risky, instantiate wrapper?)
-        // Better: We edit the PREFAB if the user confirms, or we assume these are our custom ones.
-        // Let's trying to Find "Building_Floor" or "Building_Wall" specifically for this project.
-        
         Debug.Log($"[BuildingSetup] Floor: {bm.floorPrefab}, Wall: {bm.wallPrefab}");
         
         if (bm.floorPrefab) AddSnapPoints(bm.floorPrefab);
         if (bm.wallPrefab) AddSnapPoints(bm.wallPrefab);
+        */
 
         Selection.activeGameObject = bm.gameObject;
     }

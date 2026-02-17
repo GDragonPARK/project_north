@@ -53,7 +53,7 @@ public class FixCameraAndMesh : EditorWindow
         }
 
         // 3. Check Camera
-        CinemachineFreeLook vcam = FindObjectOfType<CinemachineFreeLook>();
+        CinemachineFreeLook vcam = Object.FindFirstObjectByType<CinemachineFreeLook>();
         if (vcam != null)
         {
             Debug.Log($"[Camera] Found CM FreeLook '{vcam.name}'");
@@ -81,7 +81,7 @@ public class FixCameraAndMesh : EditorWindow
         else
         {
             // Try VirtualCamera
-            CinemachineVirtualCamera vcam2 = FindObjectOfType<CinemachineVirtualCamera>();
+            CinemachineVirtualCamera vcam2 = Object.FindFirstObjectByType<CinemachineVirtualCamera>();
             if (vcam2 != null)
             {
                 Debug.Log($"[Camera] Found VirtualCamera '{vcam2.name}'");

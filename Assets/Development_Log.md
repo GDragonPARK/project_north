@@ -1,34 +1,36 @@
-# Development Log - Project North
+# Project North Development Log (2026-02-17)
 
-## Session: 2026-02-13
-### Goals
-- Refine Inventory UI layout (Top-Left) and visibility toggle ('I' key).
-- Implement interaction feedback (Glow Effect) for items.
-- Ensure reliable item pickup from fallen logs.
+## 🏗️ 오늘 완료된 작업 (Today's Progress)
 
-### Completed Tasks
-1.  **Inventory UI Overhaul**:
-    -   Moved `Inventory_Panel` to the **Top-Left** anchor (0, 1).
-    -   Separated `QuickSlotHUD` to the **Bottom-Center** (0.5, 0) to remain visible during gameplay.
-    -   Implemented `InventoryUI.Awake()` to force `SetActive(false)` on start, ensuring the inventory is hidden by default.
-    -   Implemented Cursor Logic: Locked/Hidden when inventory is closed; Unlocked/Visible when open.
+### 1. 건축 스냅 시스템 (Building Snap System)
+- **SnapPoint**: 건축물 프리팹에 자석처럼 붙는 지점을 정의하는 컴포넌트 구현.
+- **자동 정렬**: `BuildingManager`에서 `Physics.OverlapSphere`를 사용하여 가장 가까운 스냅 지점을 찾아 고스트 위치를 보정.
+- **자유 배치**: **Left Shift** 키를 누르고 있으면 스냅링이 비활성화되어 자유로운 배치가 가능.
 
-2.  **Interaction System**:
-    -   Increased interaction distance in `PlayerInteraction.cs` to **10f**.
-    -   Added Debug Log: "Item Hovered: [Name]" for immediate feedback.
-    -   Implemented **Glow Effect** using `ChocDino.UIFX.GlowFilter`:
-        -   Items glow **Yellow** with **Strength 2.0f** when hovered.
-        -   Logic handles adding/removing the component dynamically.
+### 2. 자원 및 아이템 수집 시스템 (Resource & Item Pickup)
+- **비용 체크**: 건축 시 `BuildingDataSO`에 설정된 나무(Wood) 등의 자원이 충분한지 확인하고 차감.
+- **아이템 수집**: 필드에 떨어진 아이템(예: Wood)을 획득할 때 `BuildingManager`의 `AddResource`를 통해 자원 데이터가 증가하도록 연동.
+- **물리 버그 수정**: 아이템 획득 시 플레이어와 충돌하여 튕겨나가는 현상을 레이어 매트릭스 설정 및 콜라이더 비활성화로 해결.
 
-3.  **Loot Spawning (`FallenLog.cs`)**:
-    -   Forced spawned loot to the **"Item" Layer** immediately upon instantiation.
-    -   Pre-attached a disabled `GlowFilter` component to loot for interaction readiness.
+### 3. 해체 및 안정성 기반 시스템 (Removal & Stability Foundation)
+- **New Input System 마이그레이션**: 건축 모드 진입(B), 해체(우클릭) 등 레거시 `Input.GetKeyDown` 코드를 New Input System 콜백 방식으로 전면 교체.
+- **건물 해체**: 건축 모드에서 설치된 건축물을 우클릭 시, 자원을 100% 환급하며 오브젝트 파기.
+- **BuildingPiece**: 모든 설치물에 자동 부착되어 지형 접촉 여부(`isGrounded`)를 추적. (발헤임식 안정성 시스템의 기반 마련)
 
-### Current Status
--   **Game Loop**: Chop Tree -> Log Falls -> Log Breaks -> Loot Spawns (Correct Layer/Components) -> Player Interacts (Glow) -> Pickup -> Inventory Updates.
--   **UI**: Inventory toggle works correctly with cursor management. Quick slots remain visible.
+### 4. 카테고리 탭 UI 시스템 (Building UI Category System)
+- **카테고리 분류**: '구조물', '가구' 등으로 건축물을 그룹화하는 `BuildingCategorySO` 구현.
+- **탭 네비게이션**: **Q(이전)**, **E(다음)** 키를 사용하여 실시간으로 카테고리를 전환하고 하단 그리드를 갱신.
+- **동적 그리드**: 선택된 카테고리에 속한 아이템들만 UI에 표시되도록 최적화.
 
-### Next Steps
--   **Playtest**: Verify the entire resource gathering loop in a build or extended play session.
--   **Polish**: check for any edge cases (e.g., inventory full).
--   **Feature**: Proceed to Crafting or Building system implementation.
+---
+
+## 🚀 다음 단계 (Next Steps)
+
+1. **정식 인벤토리 연동**: 현재 디버그용 변수(`debugWoodAmount`)로 작동 중인 자원 시스템을 실제 인벤토리 시스템과 연결.
+2. **구조물 안정성 로직 완성**: `isGrounded`가 `false`이고 지탱해주는 주변 구조물이 없을 경우 건물이 파괴되는 물리 효과 구현.
+3. **UI 프리미엄 디자인**: 현재의 기본적인 UI를 블러 효과, 애니메이션, 고해상도 아이콘을 적용한 프리미엄 디자인으로 업그레이드.
+4. **건축 데이터 확장**: 더 다양한 건축 조각(지붕, 기둥, 창문 등)과 소품 카테고리 추가.
+
+---
+
+**안티그래비티 로그 기록 완료. 수고하셨습니다!** 🌲🏡

@@ -28,7 +28,7 @@ public class TerrainGenerator : MonoBehaviour
     [Header("4. 생성 설정 (Fixed Resolution)")]
     public int width = 2049; // Huge Map
     public int length = 2049;
-    public int objectDensity = 30000; // Optimized Density
+    public int objectDensity = 25000; // Optimized Density
 
     private Terrain m_terrain;
     private GameObject natureRoot;

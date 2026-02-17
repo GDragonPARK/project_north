@@ -65,12 +65,37 @@ public class InventorySystem : MonoBehaviour
 
     public bool HasItem(ItemData item, int amount)
     {
+        return GetCount(item) >= amount;
+    }
+
+    public int GetCount(ItemData item)
+    {
+        if (item == null) return 0;
         int count = 0;
         foreach (var i in inventoryList)
         {
             if (i == item) count++;
         }
-        return count >= amount;
+        return count;
+    }
+
+    public bool TryConsume(ItemData item, int amount)
+    {
+        if (GetCount(item) < amount) return false;
+
+        int removed = 0;
+        // Iterate backwards to safely remove
+        for (int i = inventoryList.Count - 1; i >= 0; i--)
+        {
+            if (inventoryList[i] == item)
+            {
+                inventoryList.RemoveAt(i);
+                removed++;
+                if (removed >= amount) break;
+            }
+        }
+        OnItemChanged?.Invoke();
+        return true;
     }
 
     // Resources Compatibility (Wood)
@@ -104,6 +129,7 @@ public class InventorySystem : MonoBehaviour
 
     public int GetWoodCount()
     {
+        // Improved to use GetCount if possible, but keep string check for safety
         int count = 0;
         foreach (var item in inventoryList)
         {

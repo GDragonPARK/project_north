@@ -149,8 +149,8 @@ public class Antigravity_SetupTool : EditorWindow
         return null;
     }
 
-    [MenuItem("Antigravity/Fix Performance & Player")]
-    public static void OptimizeAndRescue()
+    [MenuItem("Antigravity/Fix Performance Only (Materials & Terrain)")]
+    public static void OptimizeMaterialsAndTerrain()
     {
         // 1. Optimize Vegetation (GPU Instancing + LOD Culling)
         OptimizePrefabs();
@@ -164,28 +164,25 @@ public class Antigravity_SetupTool : EditorWindow
             
             if (tg)
             {
-                tg.objectDensity = 30000; // Optimal 30k
+                tg.objectDensity = 25000; // Optimal 25k
                 EditorUtility.SetDirty(tg);
             }
             if (vs)
             {
                 vs.minScale = 0.8f;
-                vs.maxScale = 2.5f; // Bigger trees to fill gaps
+                vs.maxScale = 2.5f; 
                 EditorUtility.SetDirty(vs);
             }
         }
 
-        // 3. Rescue Player
-        RescuePlayer();
-        
-        Debug.Log("[Antigravity] Optimization & Rescue Complete!");
+        Debug.Log("[Antigravity] Optimization Complete (Materials & Terrain Updated). Hierarchy Untouched.");
     }
 
     private static void OptimizePrefabs()
     {
         // Find all Ghibli Prefabs used (Trees, Flowers, Shrubs)
         // We can find them via VegetationSpawner if available, or search assets
-        VegetationSpawner vs = FindObjectOfType<VegetationSpawner>();
+        VegetationSpawner vs = Object.FindFirstObjectByType<VegetationSpawner>();
         if (vs == null) return;
 
         List<GameObject> allVeg = new List<GameObject>();
@@ -212,71 +209,22 @@ public class Antigravity_SetupTool : EditorWindow
                 }
             }
 
-            // B. LOD Group (Culled)
-            // If no LODGroup, add one that Culls at 5% screen height (far away)
+            // B. LOD Group (Culled) - Checking only, avoiding structure changes if strict
+            // User requested "LOD Check" previously. But "Do not touch hierarchy structure".
+            // Adding a component to a PREFAB asset is safe(ish), but let's stick to "Materials & Terrain" as primary.
+            // But user said "LOD 점검" (Check LOD) in the prompt before this one.
+            // And in this prompt "Only Terrain and Material settings". 
+            // I will COMMENT OUT LOD creation to be perfectly safe and compliant with "Only Terrain and Material".
+            /*
             LODGroup lod = prefab.GetComponent<LODGroup>();
             if (lod == null)
             {
-                lod = prefab.AddComponent<LODGroup>();
-                
-                // create LODs
-                LOD[] lods = new LOD[1];
-                lods[0] = new LOD(0.02f, renderers); // Cull at < 2%
-                // Actually user asked for 50m. 
-                // LOD Group uses relative screen height. 0.05 is roughly 5% screen height.
-                // Let's be aggressive: 0.05 (5%)
-                
-                lod.SetLODs(lods);
-                lod.RecalculateBounds();
-                EditorUtility.SetDirty(prefab);
+                // Component addition disabled for safety compliance
             }
+            */
+            
             optimizedCount++;
         }
-        Debug.Log($"[Optimization] {optimizedCount} prefabs optimized (GPU Instancing + LOD).");
-    }
-
-    private static void RescuePlayer()
-    {
-        // 1. Delete Existing Ghost Players
-        GameObject oldPlayer = GameObject.Find("Player_New");
-        if (oldPlayer) DestroyImmediate(oldPlayer);
-        
-        GameObject oldPlayer2 = GameObject.Find("Player");
-        if (oldPlayer2 && oldPlayer2.transform.root == oldPlayer2.transform) DestroyImmediate(oldPlayer2); // Only destroy roots
-
-        // 2. Find Prefab
-        GameObject playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Characters/Player/Player.prefab"); 
-        if (playerPrefab == null) playerPrefab = FindGhibliAsset<GameObject>("Player"); // Fallback
-        
-        if (playerPrefab != null)
-        {
-            // 3. Instantiate
-            // Safe Spawn Spot
-            Terrain t = FindObjectOfType<Terrain>();
-            float x = 200f;
-            float z = 200f;
-            float y = t ? t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y : 0;
-
-            GameObject newPlayer = Instantiate(playerPrefab, new Vector3(x, y + 5f, z), Quaternion.identity);
-            newPlayer.name = "Player_New";
-            newPlayer.tag = "Player";
-            
-            // 4. Focus Camera
-            Cinemachine.CinemachineFreeLook vcam = FindObjectOfType<Cinemachine.CinemachineFreeLook>();
-            if (vcam)
-            {
-                vcam.Follow = newPlayer.transform;
-                vcam.LookAt = newPlayer.transform;
-                EditorUtility.SetDirty(vcam);
-            }
-            
-            Debug.Log($"[Rescue] Player RESPAWNED from Prefab at {newPlayer.transform.position}");
-            Selection.activeGameObject = newPlayer;
-            SceneView.FrameLastActiveSceneView();
-        }
-        else
-        {
-            Debug.LogError("[Rescue] Could not find 'Player_New' or 'Player' prefab to respawn!");
-        }
+        Debug.Log($"[Optimization] {optimizedCount} prefabs checked for GPU Instancing.");
     }
 }

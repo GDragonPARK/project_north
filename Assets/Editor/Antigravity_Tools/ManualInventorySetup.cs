@@ -13,7 +13,7 @@ public class ManualInventorySetup : MonoBehaviour
         if (managers.GetComponent<InventoryManager>() == null) managers.AddComponent<InventoryManager>();
 
         // Find or Create Canvas
-        Canvas canvas = GameObject.FindObjectOfType<Canvas>();
+        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
         if (canvas == null)
         {
             GameObject canvasObj = new GameObject("Inventory Canvas");

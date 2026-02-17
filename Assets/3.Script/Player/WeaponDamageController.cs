@@ -16,7 +16,21 @@ public class WeaponDamageController : MonoBehaviour
     {
         // Debug.Log($"[Weapon] Hit Trigger: {other.name} (Tag: {other.tag}) (Layer: {other.gameObject.layer})");
 
-        Vector3 hitPoint = other.ClosestPoint(transform.position);
+        Vector3 hitPoint = transform.position; // Default safe position
+        
+        // Safety Check for ClosestPoint on non-convex MeshCollider
+        bool safeToUseClosestPoint = true;
+        if (other is MeshCollider mc && !mc.convex) safeToUseClosestPoint = false;
+
+        if (safeToUseClosestPoint)
+        {
+            hitPoint = other.ClosestPoint(transform.position);
+        }
+        else
+        {
+            // Fallback: Use bounds center or just player position
+            hitPoint = other.bounds.ClosestPoint(transform.position);
+        }
 
         // Priority 0: ResourceObject (New System)
         ResourceObject res = other.GetComponent<ResourceObject>();

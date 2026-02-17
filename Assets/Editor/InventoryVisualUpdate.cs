@@ -66,7 +66,7 @@ public class InventoryVisualUpdate : EditorWindow
 
 
         // Apply to QuickSlotUI in the scene
-        QuickSlotUI quickSlotUI = GameObject.FindObjectOfType<QuickSlotUI>();
+        QuickSlotUI quickSlotUI = Object.FindFirstObjectByType<QuickSlotUI>();
         if (quickSlotUI != null)
         {
             if (quickSlotUI.slotBackground != null)

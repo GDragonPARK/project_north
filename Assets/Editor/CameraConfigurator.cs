@@ -7,7 +7,7 @@ public class CameraConfigurator : EditorWindow
     [UnityEditor.MenuItem("Antigravity/Configure Camera (Invert & Zoom)")]
     public static void Configure()
     {
-        CinemachineFreeLook cam = Object.FindObjectOfType<CinemachineFreeLook>();
+        CinemachineFreeLook cam = Object.FindFirstObjectByType<CinemachineFreeLook>();
         if (!cam) 
         {
             Debug.LogError("No FreeLook Camera found!");
