@@ -21,6 +21,23 @@ public class BuildingUI : MonoBehaviour
 
     void Start()
     {
+        // Auto-wire references if not assigned in Inspector
+        if (uiPanel == null) uiPanel = gameObject;
+        if (gridParent == null)
+        {
+            Transform grid = transform.Find("BuildingGrid");
+            if (grid != null) gridParent = grid;
+        }
+        if (categoryNameText == null)
+        {
+            Transform catText = transform.Find("CategoryTab_Text");
+            if (catText != null) categoryNameText = catText.GetComponent<Text>();
+        }
+        if (iconPrefab == null)
+        {
+            iconPrefab = Resources.Load<GameObject>("UI/Slot_Prefab");
+        }
+
         // 시작 시 꺼둠
         if(uiPanel) uiPanel.SetActive(false);
 

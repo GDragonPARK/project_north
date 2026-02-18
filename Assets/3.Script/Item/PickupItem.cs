@@ -62,19 +62,19 @@ public class PickupItem : MonoBehaviour
             // 도착 판정
             if (dist < 2.0f)
             {
-                // Add to InventorySystem (if exists)
-                var inv = Object.FindAnyObjectByType<InventorySystem>();
-                if (inv != null)
-                {
-                    inv.AddItem(itemData, 1);
-                    inv.ForceUIUpdate();
-                    Debug.Log($"[AutoPickup] SUCCESS: {itemData.itemName}");
-                }
-
-                // Add to BuildingManager resource (for building system)
+                // Add to BuildingManager (which now handles InventorySystem integration and overflow)
                 if (BuildingManager.Instance != null && itemData != null)
                 {
-                    BuildingManager.Instance.AddResource(itemData.itemName, 1);
+                    BuildingManager.Instance.AddResource(itemData, 1);
+                }
+                else
+                {
+                    // Fallback to InventorySystem if BuildingManager is missing
+                    if (InventorySystem.Instance != null)
+                    {
+                        InventorySystem.Instance.AddItem(itemData, 1);
+                        InventorySystem.Instance.ForceUIUpdate();
+                    }
                 }
 
                 Destroy(gameObject);

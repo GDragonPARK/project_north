@@ -26,13 +26,16 @@ public class BuildingManager : MonoBehaviour
     [Header("Building Categories")]
     public List<BuildingCategorySO> categories = new List<BuildingCategorySO>();
 
-    [Header("Resource System (Debug)")]
-    [SerializeField] private int debugWoodAmount = 100;
+
 
     [Header("Input System")]
     private PlayerInput playerInput;
     private InputAction toggleBuildAction;
     private InputAction removeAction;
+    private InputAction placeAction;
+    private InputAction cancelAction;
+    private InputAction rotateAction;
+    private InputAction snapToggleAction;
 
     void Awake()
     {
@@ -53,12 +56,20 @@ public class BuildingManager : MonoBehaviour
     {
         if (toggleBuildAction != null) toggleBuildAction.Enable();
         if (removeAction != null) removeAction.Enable();
+        if (placeAction != null) placeAction.Enable();
+        if (cancelAction != null) cancelAction.Enable();
+        if (rotateAction != null) rotateAction.Enable();
+        if (snapToggleAction != null) snapToggleAction.Enable();
     }
 
     void OnDisable()
     {
         if (toggleBuildAction != null) toggleBuildAction.Disable();
         if (removeAction != null) removeAction.Disable();
+        if (placeAction != null) placeAction.Disable();
+        if (cancelAction != null) cancelAction.Disable();
+        if (rotateAction != null) rotateAction.Disable();
+        if (snapToggleAction != null) snapToggleAction.Disable();
     }
 
     private void SetupInputActions()
@@ -66,13 +77,23 @@ public class BuildingManager : MonoBehaviour
         playerInput = Object.FindAnyObjectByType<PlayerInput>();
         if (playerInput == null)
         {
-            Debug.LogWarning("[BuildingManager] PlayerInput not found in scene!");
+            Debug.LogError("[BuildingManager] ❌ PlayerInput not found in scene! B key will NOT work.");
             return;
         }
+
+        Debug.Log($"[BuildingManager] ✅ PlayerInput found on '{playerInput.gameObject.name}'");
+        Debug.Log($"[BuildingManager] Current ActionMap: {playerInput.currentActionMap?.name ?? "NULL"}");
+        Debug.Log($"[BuildingManager] Default Map: {playerInput.defaultActionMap}");
 
         // Get actions from Input System
         toggleBuildAction = playerInput.actions["ToggleBuildMenu"];
         removeAction = playerInput.actions["Remove"];
+        placeAction = playerInput.actions["Attack"]; // Use Attack button for placement
+        cancelAction = playerInput.actions["Jump"]; // Use Jump or dedicated for Cancel? Let's try to find or add. 
+        // For now, let's assume we use dedicated names if they exist, or fallbacks.
+        // I will add these to the .inputactions later.
+        rotateAction = playerInput.actions["Look"]; // We'll use scroll logic or R
+        snapToggleAction = playerInput.actions["Sprint"];
 
         // Subscribe to events
         if (toggleBuildAction != null)
@@ -84,20 +105,29 @@ public class BuildingManager : MonoBehaviour
         {
             removeAction.performed += OnRemoveBuilding;
         }
+
+        if (placeAction != null)
+        {
+            placeAction.performed += OnPlaceBuilding;
+        }
+
+        // We'll use Update for things like scroll and continuous checks to avoid callback spam
+        // but no more legacy Input calls.
     }
 
     private void OnToggleBuildMenu(InputAction.CallbackContext context)
     {
+        Debug.Log("[BuildingManager] B Key Pressed Action Triggered!");
         ToggleBuildMode();
     }
 
     private void OnRemoveBuilding(InputAction.CallbackContext context)
     {
-        // Only remove in build mode
-        if (!isBuildMode) return;
+        // Only remove in build mode AND when NOT placing a ghost
+        if (!isBuildMode || currentGhost != null) return;
 
         // Raycast to find building
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        Ray ray = Camera.main.ScreenPointToRay(Mouse.current.position.ReadValue());
         RaycastHit hit;
 
         if (Physics.Raycast(ray, out hit, 100f))
@@ -105,28 +135,48 @@ public class BuildingManager : MonoBehaviour
             BuildingPiece piece = hit.collider.GetComponent<BuildingPiece>();
             if (piece != null)
             {
-                // Refund resources
                 piece.RefundResources();
-                
                 Debug.Log($"[BuildingManager] Removed building: {hit.collider.gameObject.name}");
-                
-                // Destroy building
                 Destroy(hit.collider.gameObject);
             }
         }
     }
 
-    /// <summary>
-    /// Add resource to the debug inventory (for building system)
-    /// </summary>
-    public void AddResource(string itemName, int amount)
+    private void OnPlaceBuilding(InputAction.CallbackContext context)
     {
-        if (itemName == "Wood")
+        if (currentGhost != null && !EventSystem.current.IsPointerOverGameObject())
         {
-            debugWoodAmount += amount;
-            Debug.Log($"[BuildingManager] 자원 획득! {itemName} (+{amount}) | 현재: {debugWoodAmount}");
+            PlaceObject();
         }
-        // Add more resource types as needed
+    }
+
+    /// <summary>
+    /// Refund resources to inventory. If full, drop on ground.
+    /// </summary>
+    public void AddResource(ItemData item, int amount)
+    {
+        if (item == null || amount <= 0) return;
+
+        if (InventorySystem.Instance != null)
+        {
+            bool added = InventorySystem.Instance.AddItem(item, amount);
+            if (added)
+            {
+                Debug.Log($"[BuildingManager] 자원 환급: {item.itemName} x{amount}");
+                return;
+            }
+        }
+
+        // Inventory full or unavailable → drop on ground
+        Debug.LogWarning($"[BuildingManager] 인벤토리 가득 참! {item.itemName} 드랍");
+        if (item.itemPrefab != null)
+        {
+            for (int i = 0; i < amount; i++)
+            {
+                Vector3 dropPos = transform.position + Vector3.up + UnityEngine.Random.insideUnitSphere * 0.5f;
+                Instantiate(item.itemPrefab, dropPos, Quaternion.identity);
+            }
+        }
     }
 
     private void CreateGhostMaterials()
@@ -168,10 +218,11 @@ public class BuildingManager : MonoBehaviour
 
     void Update()
     {
-        // ESC to close build mode
-        if (isBuildMode && Input.GetKeyDown(KeyCode.Escape))
+        // ESC/Cancel logic - using New Input System via Keyboard.current for simple checks if action not bound
+        if (isBuildMode && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
-            ToggleBuildMode();
+            if (currentGhost != null) CancelBuilding();
+            else ToggleBuildMode();
         }
 
         // Placement mode logic
@@ -183,16 +234,16 @@ public class BuildingManager : MonoBehaviour
 
     private void HandleGhostPlacement()
     {
-        // Raycast for ghost position
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        // Raycast for ghost position using New Input System Mouse position
+        Ray ray = Camera.main.ScreenPointToRay(Mouse.current.position.ReadValue());
         RaycastHit hit;
 
         if (Physics.Raycast(ray, out hit, 100f, buildLayer))
         {
             Vector3 targetPosition = hit.point;
 
-            // Snap detection (unless Shift is held)
-            snapEnabled = !Input.GetKey(KeyCode.LeftShift);
+            // Snap detection (Check Shift key via Keyboard.current)
+            snapEnabled = !Keyboard.current.leftShiftKey.isPressed;
 
             if (snapEnabled)
             {
@@ -206,33 +257,26 @@ public class BuildingManager : MonoBehaviour
             currentGhost.transform.position = targetPosition;
         }
 
-        // Rotation input
-        if (Input.GetKeyDown(KeyCode.R))
+        // Update stability preview color
+        currentGhost.CalculatePredictedStability();
+
+        // Rotation input (R key)
+        if (Keyboard.current.rKey.wasPressedThisFrame)
         {
             rotationAngle += 45f;
             currentGhost.transform.rotation = Quaternion.Euler(0, rotationAngle, 0);
         }
 
         // Mouse scroll rotation
-        float scroll = Input.mouseScrollDelta.y;
-        if (Mathf.Abs(scroll) > 0.01f)
+        float scroll = Mouse.current.scroll.ReadValue().y;
+        if (Mathf.Abs(scroll) > 0.1f)
         {
-            rotationAngle += scroll * 45f;
+            rotationAngle += Mathf.Sign(scroll) * 45f;
             currentGhost.transform.rotation = Quaternion.Euler(0, rotationAngle, 0);
         }
 
-        // Place object (Left Click)
-        if (Input.GetMouseButtonDown(0))
-        {
-            // Check if pointer is over UI
-            if (!EventSystem.current.IsPointerOverGameObject())
-            {
-                PlaceObject();
-            }
-        }
-
-        // Cancel (Right Click)
-        if (Input.GetMouseButtonDown(1))
+        // Right click to cancel while placing
+        if (Mouse.current.rightButton.wasPressedThisFrame)
         {
             CancelBuilding();
         }
@@ -292,6 +336,7 @@ public class BuildingManager : MonoBehaviour
         if (currentGhost.isColliding)
         {
             Debug.LogWarning("[BuildingManager] Cannot place - Invalid location (collision detected)");
+            BuildingFeedback.Instance?.PlayErrorSound(currentGhost.transform.position);
             return;
         }
 
@@ -299,6 +344,7 @@ public class BuildingManager : MonoBehaviour
         if (!CheckCost(selectedPiece))
         {
             Debug.LogWarning("[BuildingManager] 자원 부족! 건축할 수 없습니다.");
+            BuildingFeedback.Instance?.PlayErrorSound(currentGhost.transform.position);
             return;
         }
 
@@ -309,13 +355,20 @@ public class BuildingManager : MonoBehaviour
 
         // Add BuildingPiece component for stability tracking and removal
         BuildingPiece piece = newBuilding.AddComponent<BuildingPiece>();
-        piece.data = selectedPiece; // Store reference for resource refund
+        piece.data = selectedPiece;
+
+        // Calculate stability immediately after placement
+        piece.CheckGroundedStatus();
+        piece.PropagateStabilityUpdate(new System.Collections.Generic.HashSet<int>());
 
         // Consume resources after successful placement
         ConsumeCost(selectedPiece);
 
-        Debug.Log($"[BuildingManager] Placed {selectedPiece.displayName} at {position}");
-        Debug.Log($"[BuildingManager] 남은 나무: {debugWoodAmount}");
+        Debug.Log($"[BuildingManager] Placed {selectedPiece.displayName} at {position} (Stability: {piece.stability:F1})");
+
+        // Audio & VFX feedback
+        BuildingFeedback.Instance?.PlayPlaceSound(position);
+        BuildingFeedback.Instance?.SpawnPlaceVFX(position);
 
         // Keep ghost for continuous building (don't destroy)
         // User can right-click to cancel when done
@@ -324,20 +377,18 @@ public class BuildingManager : MonoBehaviour
     private bool CheckCost(BuildingDataSO data)
     {
         if (data.constructionCosts == null || data.constructionCosts.Count == 0)
+            return true;
+
+        if (InventorySystem.Instance == null)
         {
-            return true; // No cost required
+            Debug.LogError("[BuildingManager] InventorySystem not found!");
+            return false;
         }
 
         foreach (var cost in data.constructionCosts)
         {
-            if (cost.item != null && cost.item.itemName == "Wood")
-            {
-                if (debugWoodAmount < cost.amount)
-                {
-                    return false;
-                }
-            }
-            // Add more resource types as needed
+            if (cost.item != null && !InventorySystem.Instance.HasItem(cost.item, cost.amount))
+                return false;
         }
 
         return true;
@@ -346,17 +397,15 @@ public class BuildingManager : MonoBehaviour
     private void ConsumeCost(BuildingDataSO data)
     {
         if (data.constructionCosts == null || data.constructionCosts.Count == 0)
-        {
             return;
-        }
 
         foreach (var cost in data.constructionCosts)
         {
-            if (cost.item != null && cost.item.itemName == "Wood")
+            if (cost.item != null)
             {
-                debugWoodAmount -= cost.amount;
+                InventorySystem.Instance.TryConsume(cost.item, cost.amount);
+                Debug.Log($"[BuildingManager] 자원 소모: {cost.item.itemName} x{cost.amount}");
             }
-            // Add more resource types as needed
         }
     }
 

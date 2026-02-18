@@ -12,4 +12,7 @@ public class BuildingDataSO : ScriptableObject
     
     [Header("Construction Costs")]
     public List<BuildCost> constructionCosts = new List<BuildCost>();
+
+    [Header("Physics")]
+    [Range(0.5f, 3.0f)] public float weight = 1.0f;
 }

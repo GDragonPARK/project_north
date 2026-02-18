@@ -37,6 +37,48 @@ public class ProjectSetupTool : EditorWindow
         Debug.Log("[ProjectSetup] ✅ Physics Setup Complete: Layer & Matrix Fixed");
     }
 
+    [MenuItem("Tools/Project North/Auto Link Building Data")]
+    public static void AutoLinkBuildingData()
+    {
+        // 1. Find all BuildingCategorySO assets
+        string[] guids = AssetDatabase.FindAssets("t:BuildingCategorySO");
+        System.Collections.Generic.List<BuildingCategorySO> foundCategories = new System.Collections.Generic.List<BuildingCategorySO>();
+
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            BuildingCategorySO category = AssetDatabase.LoadAssetAtPath<BuildingCategorySO>(path);
+            if (category != null)
+            {
+                foundCategories.Add(category);
+            }
+        }
+
+        if (foundCategories.Count == 0)
+        {
+            Debug.LogWarning("[ProjectSetup] No BuildingCategorySO found in project.");
+            return;
+        }
+
+        // 2. Find BuildingManager in scene
+        BuildingManager manager = Object.FindAnyObjectByType<BuildingManager>();
+        if (manager == null)
+        {
+            Debug.LogError("[ProjectSetup] BuildingManager not found in scene!");
+            return;
+        }
+
+        // 3. Link categories
+        Undo.RecordObject(manager, "Auto Link Building Data");
+        manager.categories = foundCategories;
+        
+        // 4. Save
+        EditorUtility.SetDirty(manager);
+        AssetDatabase.SaveAssets();
+
+        Debug.Log($"[ProjectSetup] ✅ Found {foundCategories.Count} categories and linked to BuildingManager.");
+    }
+
     private static int CreateLayer(string layerName)
     {
         // Check if layer already exists
