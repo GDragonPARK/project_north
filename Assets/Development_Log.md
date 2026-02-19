@@ -1,36 +1,49 @@
-# Project North Development Log (2026-02-17)
+# 🌲 Project North Development Log (2026-02-19)
 
-## 🏗️ 오늘 완료된 작업 (Today's Progress)
-
-### 1. 건축 스냅 시스템 (Building Snap System)
-- **SnapPoint**: 건축물 프리팹에 자석처럼 붙는 지점을 정의하는 컴포넌트 구현.
-- **자동 정렬**: `BuildingManager`에서 `Physics.OverlapSphere`를 사용하여 가장 가까운 스냅 지점을 찾아 고스트 위치를 보정.
-- **자유 배치**: **Left Shift** 키를 누르고 있으면 스냅링이 비활성화되어 자유로운 배치가 가능.
-
-### 2. 자원 및 아이템 수집 시스템 (Resource & Item Pickup)
-- **비용 체크**: 건축 시 `BuildingDataSO`에 설정된 나무(Wood) 등의 자원이 충분한지 확인하고 차감.
-- **아이템 수집**: 필드에 떨어진 아이템(예: Wood)을 획득할 때 `BuildingManager`의 `AddResource`를 통해 자원 데이터가 증가하도록 연동.
-- **물리 버그 수정**: 아이템 획득 시 플레이어와 충돌하여 튕겨나가는 현상을 레이어 매트릭스 설정 및 콜라이더 비활성화로 해결.
-
-### 3. 해체 및 안정성 기반 시스템 (Removal & Stability Foundation)
-- **New Input System 마이그레이션**: 건축 모드 진입(B), 해체(우클릭) 등 레거시 `Input.GetKeyDown` 코드를 New Input System 콜백 방식으로 전면 교체.
-- **건물 해체**: 건축 모드에서 설치된 건축물을 우클릭 시, 자원을 100% 환급하며 오브젝트 파기.
-- **BuildingPiece**: 모든 설치물에 자동 부착되어 지형 접촉 여부(`isGrounded`)를 추적. (발헤임식 안정성 시스템의 기반 마련)
-
-### 4. 카테고리 탭 UI 시스템 (Building UI Category System)
-- **카테고리 분류**: '구조물', '가구' 등으로 건축물을 그룹화하는 `BuildingCategorySO` 구현.
-- **탭 네비게이션**: **Q(이전)**, **E(다음)** 키를 사용하여 실시간으로 카테고리를 전환하고 하단 그리드를 갱신.
-- **동적 그리드**: 선택된 카테고리에 속한 아이템들만 UI에 표시되도록 최적화.
+오늘 작업한 내용을 요약한 개발 로그입니다. 다음 세션에서 이 내용을 바탕으로 이어서 작업할 수 있습니다.
 
 ---
 
-## 🚀 다음 단계 (Next Steps)
+## ✅ 완료된 작업 (Summary)
 
-1. **정식 인벤토리 연동**: 현재 디버그용 변수(`debugWoodAmount`)로 작동 중인 자원 시스템을 실제 인벤토리 시스템과 연결.
-2. **구조물 안정성 로직 완성**: `isGrounded`가 `false`이고 지탱해주는 주변 구조물이 없을 경우 건물이 파괴되는 물리 효과 구현.
-3. **UI 프리미엄 디자인**: 현재의 기본적인 UI를 블러 효과, 애니메이션, 고해상도 아이콘을 적용한 프리미엄 디자인으로 업그레이드.
-4. **건축 데이터 확장**: 더 다양한 건축 조각(지붕, 기둥, 창문 등)과 소품 카테고리 추가.
+### 1. 로그인 UI 완전 재구축 (AG-20260218)
+- **목표**: Valheim 스타일의 프리미엄 로그인 인터페이스 구현
+- **구현 내용**:
+    - `Canvas_Login`: 1920x1080 기준 "Scale with Screen Size" 설정
+    - **Visual Style**: 패널(#1A1A1A), 타이틀(#FFD700), 헤더(#FFA500) 등 Valheim 고유 색상 팔레트 적용
+    - **UI Hierarchy**: 비네트 배경, 타이틀 그룹, 접속 패널(IP/Port/Button/Log), 푸터 구성 완료
+- **핵심 스크립트**:
+    - `LoginUIController.cs`: UI 상태(Disconnected, Connecting, Connected, Loading, Error) 관리
+    - `NetworkClientManager.cs`: 로그인 로직 분리 (현재 2초 지연 시뮬레이션 적용)
+
+### 2. UI 상호작용 및 클릭 문제 해결 (AG-20260219-Fix-UI-Interaction)
+- **문제**: 레이아웃은 정상이나 버튼클릭이 되지 않던 현상 해결
+- **조치 사항**:
+    - **EventSystem 교체**: `Standalone Input Module` → `Input System UI Input Module` (New Input System 대응)
+    - **Raycast 최적화**: `BG_Overlay` 및 각종 텍스트의 `Raycast Target` 비활성화하여 클릭 가로채기 방지
+    - **Navigation**: 버튼의 `Navigation`을 `None`으로 설정하여 키보드 포커스 문제 차단
+
+### 3. 비동기 씬 전환 시스템 구현 (AG-20260219-001)
+- **목표**: 로그인 성공 시 메인 게임 월드로 자연스럽게 진입
+- **구현 내용**:
+    - **Async Loading**: `SceneManager.LoadSceneAsync("main")` 호출 및 진행률 UI($0 \sim 100\%$) 구현
+    - **Auto Build Registration**: 에디터 스크립트(`BuildSettingsSetup.cs`)를 통해 `LoginScene`과 `main` 씬을 Build Settings에 자동 등록
+    - **UX 피드백**: 로딩 완료 시 "100%" 표시 및 0.5초 후 씬 활성화
 
 ---
 
-**안티그래비티 로그 기록 완료. 수고하셨습니다!** 🌲🏡
+## 🛠️ 주요 파일 및 경로
+- **Scripts**: `Assets/3.Script/UI/LoginUIController.cs`, `Assets/3.Script/Core/NetworkClientManager.cs`
+- **Editor Tools**: `Assets/Editor/Antigravity_Tools/` (UISetup, UIInteractionFixer, BuildSettingsSetup)
+- **Scenes**: `Assets/1.Scene/LoginScene.unity`, `Assets/valheim_Data/Scenes/Scenes/main.unity`
+
+---
+
+## ⏭️ 다음 작업 제안 (Next Steps)
+1. **실제 네트워크 연동**: `NetworkClientManager.cs`의 `SimulateConnection`을 실제 서버 통신 로직으로 교체
+2. **사운드 효과 추가**: 버튼 클릭, 로딩 완료, 로그인 시 Valheim 풍의 효과음 연동
+3. **환경 최적화**: 메인 씬(`main.unity`) 진입 시 성능 병목(LOD, Instancing) 재점검
+
+---
+**보고자**: Antigravity (AI Assistant)
+**보고 일시**: 2026-02-19 17:58 (Local Time)
