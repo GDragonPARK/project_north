@@ -4,6 +4,7 @@ using UnityEngine.SceneManagement;
 using TMPro;
 using System;
 using System.Collections;
+using Mirror;
 
 public class LoginUIController : MonoBehaviour
 {
@@ -12,6 +13,8 @@ public class LoginUIController : MonoBehaviour
     [Header("Input Fields")]
     [SerializeField] private TMP_InputField ipInputField;
     [SerializeField] private TMP_InputField portInputField;
+    [SerializeField] private TMP_InputField idInputField;
+    [SerializeField] private TMP_InputField pwInputField;
 
     [Header("Buttons")]
     [SerializeField] private Button connectButton;
@@ -23,26 +26,26 @@ public class LoginUIController : MonoBehaviour
     [SerializeField] private TextMeshProUGUI logText;
     [SerializeField] private ScrollRect logScrollRect;
 
-    [Header("References")]
-    [SerializeField] private NetworkClientManager networkManager;
-
     [Header("Scene Transition")]
     [SerializeField] private string mainSceneName = "main";
 
     private ConnectionState currentState = ConnectionState.Disconnected;
+    private MySqlAuthenticator authenticator;
 
     private void Start()
     {
         connectButton.onClick.AddListener(OnConnectClicked);
 
-        if (networkManager == null)
-            networkManager = FindObjectOfType<NetworkClientManager>();
-
-        if (networkManager != null)
+        if (NetworkManager.singleton != null)
         {
-            networkManager.OnStatusChanged += HandleStatusChanged;
-            networkManager.OnLogMessage += AddLog;
+            authenticator = NetworkManager.singleton.GetComponent<MySqlAuthenticator>();
+            if (authenticator != null)
+            {
+                authenticator.OnAuthResponse += HandleAuthResponse;
+            }
         }
+
+        NetworkClient.OnDisconnectedEvent += HandleClientDisconnected;
 
         SetState(ConnectionState.Disconnected);
         AddLog("System initialized. Ready to connect.");
@@ -50,20 +53,25 @@ public class LoginUIController : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (networkManager != null)
+        if (authenticator != null)
         {
-            networkManager.OnStatusChanged -= HandleStatusChanged;
-            networkManager.OnLogMessage -= AddLog;
+            authenticator.OnAuthResponse -= HandleAuthResponse;
         }
+
+        NetworkClient.OnDisconnectedEvent -= HandleClientDisconnected;
     }
 
-    private void OnConnectClicked()
+    public void OnConnectClicked()
     {
+        Debug.Log("<color=yellow>[LoginUI] Connect Button Clicked!</color>");
+
         if (currentState == ConnectionState.Connecting || currentState == ConnectionState.Connected)
             return;
 
         string ip = ipInputField.text;
         string portStr = portInputField.text;
+        string id = idInputField.text;
+        string pw = pwInputField.text;
 
         if (string.IsNullOrWhiteSpace(ip))
         {
@@ -77,6 +85,13 @@ public class LoginUIController : MonoBehaviour
             portInputField.text = portStr;
         }
 
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(pw))
+        {
+            SetState(ConnectionState.Error);
+            AddLog("<color=#FF4444>[ERROR]</color> Please enter your ID and Password.");
+            return;
+        }
+
         if (!int.TryParse(portStr, out int port))
         {
             SetState(ConnectionState.Error);
@@ -86,70 +101,78 @@ public class LoginUIController : MonoBehaviour
 
         AddLog($"Attempting connection to {ip}:{port}...");
         SetState(ConnectionState.Connecting);
-        networkManager.Connect(ip, port);
-    }
 
-    private void HandleStatusChanged(ConnectionState newState)
-    {
-        SetState(newState);
-
-        if (newState == ConnectionState.Connected)
+        if (NetworkManager.singleton == null)
         {
-            StartCoroutine(LoadMainSceneCoroutine());
+            SetState(ConnectionState.Error);
+            AddLog("<color=#FF4444>[ERROR]</color> NetworkManager not found.");
+            return;
         }
-    }
 
-    private IEnumerator LoadMainSceneCoroutine()
-    {
-        yield return new WaitForSeconds(0.5f);
-
-        // Build Settings 방어 코드
-        int buildIndex = SceneUtility.GetBuildIndexByScenePath(
-            System.IO.Path.Combine("Assets", mainSceneName + ".unity"));
-
-        // 전체 Build Settings에서 씬 이름으로 검색
-        bool sceneFound = false;
-        for (int i = 0; i < SceneManager.sceneCountInBuildSettings; i++)
+        if (authenticator == null)
         {
-            string scenePath = SceneUtility.GetScenePathByBuildIndex(i);
-            if (scenePath.Contains(mainSceneName))
+            authenticator = NetworkManager.singleton.GetComponent<MySqlAuthenticator>();
+            if (authenticator != null)
             {
-                sceneFound = true;
-                break;
+                // Unsubscribe first just in case to avoid double subscription
+                authenticator.OnAuthResponse -= HandleAuthResponse;
+                authenticator.OnAuthResponse += HandleAuthResponse;
+            }
+            else
+            {
+                SetState(ConnectionState.Error);
+                AddLog("<color=#FF4444>[ERROR]</color> MySqlAuthenticator not found on NetworkManager.");
+                return;
             }
         }
 
-        if (!sceneFound)
+        authenticator.clientUsername = id;
+        authenticator.clientPassword = pw;
+
+        NetworkManager.singleton.networkAddress = ip;
+
+        // Try to set the port if we can find a KCP transport
+        var transport = NetworkManager.singleton.GetComponent<kcp2k.KcpTransport>();
+        if (transport != null)
         {
-            AddLog($"<color=#FF4444>[ERROR]</color> Scene '{mainSceneName}' not found in Build Settings!");
-            AddLog("<color=#FF4444>[ERROR]</color> Add the scene via File > Build Settings.");
-            SetState(ConnectionState.Error);
-            yield break;
+            transport.Port = (ushort)port;
         }
 
-        // UI 잠금
-        SetState(ConnectionState.Loading);
-        ipInputField.interactable = false;
-        portInputField.interactable = false;
-
-        AddLog($"Loading scene '{mainSceneName}'...");
-
-        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(mainSceneName);
-        asyncLoad.allowSceneActivation = false;
-
-        while (asyncLoad.progress < 0.9f)
-        {
-            float progress = Mathf.Clamp01(asyncLoad.progress / 0.9f) * 100f;
-            statusText.text = $"Loading World... {progress:F0}%";
-            yield return null;
-        }
-
-        statusText.text = "Loading World... 100%";
-        AddLog("<color=#4DE94D>[SUCCESS]</color> World loaded. Entering game...");
-        yield return new WaitForSeconds(0.5f);
-
-        asyncLoad.allowSceneActivation = true;
+        NetworkManager.singleton.StartClient();
     }
+
+    private void HandleAuthResponse(bool success, string message)
+    {
+        if (success)
+        {
+            AddLog($"<color=#4DE94D>[SUCCESS]</color> {message}");
+            SetState(ConnectionState.Connected);
+            // Removed StartCoroutine(LoadMainSceneCoroutine()); Mirror handles scene transition automatically.
+        }
+        else
+        {
+            AddLog($"<color=#FF4444>[ERROR]</color> {message}");
+            SetState(ConnectionState.Error);
+            NetworkManager.singleton.StopClient();
+        }
+    }
+
+    private void HandleClientDisconnected()
+    {
+        if (currentState == ConnectionState.Connecting)
+        {
+            AddLog("<color=#FF4444>[ERROR]</color> Connection failed or server is offline.");
+            SetState(ConnectionState.Error);
+        }
+        else if (currentState == ConnectionState.Connected || currentState == ConnectionState.Loading)
+        {
+            AddLog("<color=#FF4444>[ERROR]</color> Disconnected from server.");
+            SetState(ConnectionState.Error);
+        }
+    }
+
+    // private IEnumerator LoadMainSceneCoroutine() ... Removed as Mirror handles scene transition
+
 
     private void SetState(ConnectionState state)
     {
@@ -166,22 +189,38 @@ public class LoginUIController : MonoBehaviour
                 statusText.text = "Status: Connecting...";
                 statusText.color = new Color(1f, 0.84f, 0f); // #FFD700
                 connectButton.interactable = false;
+                SetButtonText("CONNECTING...");
                 break;
             case ConnectionState.Connected:
                 statusText.text = "Status: Connected";
                 statusText.color = new Color(0.3f, 0.9f, 0.3f); // Green
                 connectButton.interactable = false;
+                SetButtonText("CONNECTING...");
                 break;
             case ConnectionState.Loading:
                 statusText.text = "Loading World...";
                 statusText.color = new Color(1f, 0.84f, 0f); // #FFD700
                 connectButton.interactable = false;
+                SetButtonText("CONNECTING...");
                 break;
             case ConnectionState.Error:
                 statusText.text = "Status: Connection Failed";
                 statusText.color = new Color(1f, 0.27f, 0.27f); // Red
                 connectButton.interactable = true;
+                SetButtonText("CONNECT");
                 break;
+        }
+    }
+
+    private void SetButtonText(string text)
+    {
+        if (connectButton != null)
+        {
+            TextMeshProUGUI btnText = connectButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (btnText != null)
+            {
+                btnText.text = text;
+            }
         }
     }
 
