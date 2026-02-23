@@ -29,7 +29,7 @@ public class CameraInputBridge : MonoBehaviour
         // Map "Mouse X" / "Mouse Y" which Cinemachine asks for by default
         // to our Input System vector
         if (axisName == "Mouse X") return _input.look.x; 
-        if (axisName == "Mouse Y") return _input.look.y;
+        if (axisName == "Mouse Y") return -_input.look.y; // Y축 반전 수정: 정방향
 
         return 0f;
     }

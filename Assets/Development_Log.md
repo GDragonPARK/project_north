@@ -1,133 +1,37 @@
-# Project North - Development Log
-**최종 업데이트**: 2026-02-20 (목) 16:12 KST  
-**작업자**: Antigravity AI Assistant  
-**Unity Version**: 6000.2.8f1  
-**프로젝트 경로**: `C:\Users\user\project_north\Personal_Project_valheim`
+# Development Log - Project North (Valheim Clone)
+**Last Updated:** 2026-02-23 17:57 (KST)
+
+## 📋 Current Project Status
+건축 시스템의 핵심 기능과 시각적 피드백, 그리고 주요 버그 수정이 완료된 상태입니다. Valheim 스타일의 직관적이고 만족스러운 건축 경험을 제공하기 위한 기반이 구축되었습니다.
+
+## ✅ Completed Tasks (Recent)
+1. **건축 시스템 구조 개선 (2-Pass Smart Snap):**
+   - 레이캐스트 기반의 기본 배치와 `OverlapSphere` 기반의 자동 스냅 로직을 분리하여 정확도 향상.
+   - `BuildingManager.cs` 내 중복 메서드 정리 및 컴파일 오류 해결.
+2. **시각적 피드백 및 효과 (Phase 4.13):**
+   - **다이내믹 고스트 컬러링:** 지면 높이에 따른 Green-Yellow 그라데이션 적용 (`MaterialPropertyBlock` 사용).
+   - **MustSnap 시각화:** 스냅이 필수인 조각이 스냅되지 않았을 때 파란색 고스트로 표시.
+   - **팝업 애니메이션:** 건축물 배치 시 0.15초 동안 Scale이 커지는 애니메이션 추가.
+   - **카메라 셰이크:** 성공적인 배치 시 Cinemachine Impulse를 통한 화면 흔들림 효과 추가.
+3. **치명적 버그 수정 (Ghost Sockets Missing):**
+   - `BuildingSetupTool.cs`가 Ghost 프리팹을 생성할 때 SnapPoint를 누락하던 문제 수정.
+   - 이제 Ghost 프리팹도 Real 프리팹과 동일한 소켓 데이터를 가져 스냅 인식이 정상화됨.
+
+## 🛠 Technical Notes
+- **주요 스크립트:**
+  - `BuildingManager.cs`: 건축 로직 총괄.
+  - `BuildingSetupTool.cs`: 프리팹 생성 및 소켓 자동 셋업 툴.
+  - `BuildingGhost.cs`: 고스트 오브젝트 관리.
+- **레이어 구성:**
+  - `Ground`: 지형 및 바닥.
+  - `Building`: 건축된 조각들.
+  - `Ignore Raycast`: 고스트 오브젝트 (레이캐스트 방해 방지).
+- **컴파일 주의:** `Cinemachine` 패키지가 설치되어 있어야 하며, 메인 카메라에 `CinemachineImpulseSource` 컴포넌트가 필요합니다.
+
+## 🚀 Next Steps (Recommended)
+1. **자원 소모 시스템 테스트:** 인벤토리와 연동된 건축 비용 소모 로직 검증.
+2. **건축물 내구도 및 안정성:** 건축물의 높이에 따른 역학적 안정성(Structural Integrity) 강화.
+3. **추가 조각 지원:** 계단, 지붕 모서리 등 더 복잡한 SnapType 정의 및 프리팹 생성.
 
 ---
-
-## 📌 현재 상태 요약
-
-### 핵심 미해결 이슈: Login UI Connect 버튼 클릭 불가
-- InputField(ID/PW)는 정상적으로 마우스 입력을 인식하나, **ConnectButton만 클릭이 인식되지 않음**.
-- 다수의 자동화 툴을 제작하여 조치했으나, 근본 원인이 완전히 해소되지 않은 상태.
-- **다음 세션에서 반드시 Play 모드에서 테스트 후 결과를 확인해야 함.**
-
-### 추정 원인 (조사 완료)
-1. ~~StandaloneInputModule 사용~~ → `InputSystemUIInputModule`로 교체 완료
-2. ~~배경 Image의 RaycastTarget이 클릭 가로챔~~ → 전체 Graphic 비활성화 후 Selectable만 복구 완료
-3. ~~부모 CanvasGroup이 클릭 차단~~ → `ignoreParentGroups = true` 설정 완료
-4. **버튼 RectTransform의 sizeDelta가 0x0으로 압축되어 클릭 영역이 물리적으로 존재하지 않을 가능성** → `LayoutElement`와 `sizeDelta` 강제 설정 완료 (확인 필요)
-
----
-
-## 🔧 오늘 수정/생성한 파일 목록 (2026-02-20)
-
-### 런타임 스크립트
-
-| 파일 경로 | 상태 | 설명 |
-| :--- | :---: | :--- |
-| `Assets/3.Script/UI/LoginUIController.cs` | 수정 | Connect 버튼 코드 바인딩, "CONNECTING..." 텍스트 변경, 에러 시 복구 로직 |
-| `Assets/3.Script/UI/UIHoverFeedback.cs` | 신규 | 마우스 Hover/Click 시 버튼 스케일 변화(1.15x/0.85x) + 디버그 로그 출력 |
-| `Assets/3.Script/Network/MySqlAuthenticator.cs` | 수정 | DB 접속 정보를 SerializedField로 분리, connectionString 프로퍼티화 |
-
-### 에디터 툴 스크립트 (`Assets/Editor/Antigravity_Tools/`)
-
-| 파일명 | 메뉴 경로 | 설명 |
-| :--- | :--- | :--- |
-| `UIInteractionFixer.cs` | Tools/Project North/Fix UI Interaction | StandaloneInputModule → InputSystemUIInputModule 교체 및 비대화형 UI Raycast 비활성화 |
-| `UIClickFixer.cs` | Tools/Project North/Fix UI Clicks | EventSystem 완전 초기화 및 Selectable 기반 Raycast 선택 복구 |
-| `UltimateUIFixer.cs` | Tools/Project North/Ultimate UI Fix | 전체 Graphic Raycast 일괄 퍼지 후 Selectable만 복구 + UIHoverFeedback 자동 부착 |
-| `UIDiagnostics.cs` | Tools/Project North/Run UI Diagnostics | GraphicRaycaster, EventSystem, CanvasGroup, ConnectButton 상태 정밀 진단 및 강제 수리 |
-| `ButtonResurrector.cs` | Tools/Project North/Resurrect Connect Button | ConnectButton에 CanvasGroup(ignoreParentGroups=true) 부여, 자식 Text Raycast 해제 |
-| `HitboxVisualizer.cs` | Tools/Project North/Fix & Visualize Hitbox | 버튼 Image를 반투명 초록으로 시각화, LayoutElement 최소 크기 확보 |
-| `PhysicalButtonFixer.cs` | Tools/Project North/Force Physical Rebuild | RectTransform sizeDelta 강제(200x60), Image를 불투명 빨간색으로 변경, LayoutElement flexible=0 |
-| `LoginUIFixer.cs` | - | LoginScene에 ID/PW InputField 자동 추가 및 바인딩 |
-| `PlayerSpawnSetup.cs` | Tools/Project North/Setup Player Spawn | Player_New 프리팹에 NetworkIdentity 추가 후 NetworkManager에 연결 |
-| `MirrorSceneIDFixer.cs` | Tools/Project North/Fix Mirror Scene IDs | Main/LoginScene 강제 재저장으로 Mirror Scene ID 생성 |
-
-### 기타 수정
-
-| 파일 경로 | 설명 |
-| :--- | :--- |
-| `Assets/Mirror/Editor/NetworkInformationPreview.cs` | GUI Style 초기화 지연으로 NullReferenceException 수정 |
-
----
-
-## 🗺️ 다음 세션 작업 가이드
-
-### 1단계: Connect 버튼 클릭 테스트 (최우선)
-```
-1. Unity 에디터에서 LoginScene을 연다.
-2. 메뉴에서 [Tools > Project North > Force Physical Rebuild]를 실행한다.
-3. Play 모드에 진입한다.
-4. Console 창을 열어 다음 로그가 뜨는지 확인한다:
-   - 마우스를 버튼 위에 올렸을 때: "<color=cyan>[UI] Hover ENTER - Mouse Detected!</color>"
-   - 버튼 클릭 시: "<color=orange>[UI] Click DOWN</color>"
-   - 버튼 클릭 시: "<color=yellow>[LoginUI] Connect Button Clicked!</color>"
-5. 화면에 빨간 사각형(버튼 Image)이 보이는지 확인한다.
-   - 보이면: 히트박스 존재 확인 → 클릭 테스트 진행
-   - 안 보이면: RectTransform이 여전히 0x0 → 부모 LayoutGroup 제거 필요
-```
-
-### 2단계: 버튼이 여전히 안 눌릴 경우
-```
-- Hierarchy에서 ConnectButton을 선택하고 Inspector에서 다음을 수동 확인:
-  - RectTransform의 Width/Height가 0이 아닌지
-  - Image 컴포넌트가 존재하고 raycastTarget = true인지
-  - CanvasGroup의 ignoreParentGroups = true인지
-  - 부모 오브젝트에 ContentSizeFitter가 있다면 제거하거나 Unconstrained로 변경
-```
-
-### 3단계: 로그인 플로우 전체 테스트
-```
-1. MySQL 서버가 로컬에서 실행 중인지 확인 (127.0.0.1)
-2. NetworkManager_System의 MySqlAuthenticator 컴포넌트에 DB 비밀번호 입력
-3. ID/PW 입력 후 Connect → 서버 인증 → Main 씬 전환 확인
-```
-
----
-
-## ⚙️ 기술 설정 참고
-
-### 네트워크 (Mirror)
-- **Transport**: KCP (kcp2k)
-- **Authenticator**: `MySqlAuthenticator` (커스텀)
-- **Online Scene**: Main.unity
-- **Offline Scene**: LoginScene.unity
-- **씬 전환**: Mirror NetworkManager가 자동 관리 (클라이언트 코드에서 수동 로드 제거됨)
-
-### 데이터베이스 (MySQL)
-- **Server**: 127.0.0.1 (로컬)
-- **Database**: programming
-- **Table**: user_info (User_Name, User_Password)
-- **보안**: 파라미터화된 쿼리 사용, 서버 사이드 인증 전용
-
-### 입력 시스템
-- **New Input System** 사용 중 (InputSystemUIInputModule)
-- Legacy Input은 제거 대상
-
-### 주요 씬
-- `Assets/1.Scene/LoginScene.unity` — 로그인 화면
-- `Assets/1.Scene/Main.unity` — 메인 게임 씬
-
----
-
-## 📝 세션별 작업 이력
-
-### 2026-02-20 (세션 2) — UI 클릭 복구 집중 작업
-- LoginUIController에 Connect 버튼 피드백 로직 추가
-- UIHoverFeedback 컴포넌트 제작 (스케일 반응 + 디버그 로그)
-- 6종의 에디터 자동화 툴 제작 (EventSystem 초기화, Raycast 정리, CanvasGroup 강제, 히트박스 시각화, 물리 크기 강제)
-- Mirror 씬 전환을 NetworkManager 자동 관리로 변경
-- NetworkInformationPreview.cs NullReferenceException 수정
-
-### 2026-02-20 (세션 1) — MySQL 인증 시스템 구축
-- MySqlAuthenticator.cs 제작 (서버 사이드 인증)
-- LoginUIController.cs 수정 (인증 요청/응답 처리)
-- PlayerSpawnSetup, MirrorSceneIDFixer 에디터 툴 제작
-
-### 2026-02-19 — Login UI 리스트럭처
-- LoginScene UI를 Valheim 테마로 전면 재구성
-- Canvas_Login 계층 구조 설계 및 구현
-- LoginUIController.cs, NetworkClientManager.cs 신규 작성
+*안티그래비티와 함께한 작업 로그입니다. 다음 세션에서 이 파일을 열어주세요!*

@@ -1,5 +1,6 @@
 public enum SnapType
 {
     Floor,
-    Wall
+    Wall,
+    Roof
 }
