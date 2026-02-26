@@ -26,10 +26,10 @@ public class BuildingSetupTool : Editor
 
     private static readonly PieceDef[] Pieces = new PieceDef[]
     {
-        new PieceDef { name="WoodFloor",   scale=new Vector3(3f,0.2f,3f), rotation=Vector3.zero,          color=new Color(0.55f,0.35f,0.15f,1f), snapType=SnapType.Floor },
-        new PieceDef { name="WoodWall",    scale=new Vector3(3f,3f,0.2f), rotation=Vector3.zero,          color=new Color(0.5f, 0.30f,0.12f,1f), snapType=SnapType.Wall  },
-        new PieceDef { name="WoodRoof_45", scale=new Vector3(3f,0.2f,3f), rotation=new Vector3(-45f,0,0), color=new Color(0.45f,0.25f,0.10f,1f), snapType=SnapType.Roof  },
-        new PieceDef { name="WoodRoof_30", scale=new Vector3(3f,0.2f,3f), rotation=new Vector3(-30f,0,0), color=new Color(0.40f,0.22f,0.10f,1f), snapType=SnapType.Roof  },
+        new PieceDef { name="WoodFloor",   scale=new Vector3(3f,0.25f,3f), rotation=Vector3.zero,          color=new Color(0.55f,0.35f,0.15f,1f), snapType=SnapType.Floor },
+        new PieceDef { name="WoodWall",    scale=new Vector3(3f,3f,0.25f), rotation=Vector3.zero,          color=new Color(0.5f, 0.30f,0.12f,1f), snapType=SnapType.Wall  },
+        new PieceDef { name="WoodRoof_45", scale=new Vector3(3f,0.25f,3f), rotation=new Vector3(-45f,0,0), color=new Color(0.45f,0.25f,0.10f,1f), snapType=SnapType.Roof  },
+        new PieceDef { name="WoodRoof_30", scale=new Vector3(3f,0.25f,3f), rotation=new Vector3(-30f,0,0), color=new Color(0.40f,0.22f,0.10f,1f), snapType=SnapType.Roof  },
     };
 
     [MenuItem("Tools/Project North/Setup Basic Building")]
@@ -39,6 +39,7 @@ public class BuildingSetupTool : Editor
 
         EnsureLayer(GROUND_LAYER);
         EnsureLayer(BUILDING_LAYER);
+        EnsureLayer("SnapPoint"); // ★ 추가: SnapPoint 레이어
         int groundLayerIdx   = LayerMask.NameToLayer(GROUND_LAYER);
         int buildingLayerIdx = LayerMask.NameToLayer(BUILDING_LAYER);
         EnsureFolder(PREFAB_FOLDER);
@@ -56,9 +57,10 @@ public class BuildingSetupTool : Editor
                 CreateSolidMaterial(def.name + "_Real", def.color),
                 buildingLayerIdx, def.snapType);
 
-            ghostPrefabs[i] = CreateOrLoadGhostPrefab(
-                def.name + "_Ghost", def.scale, def.rotation,
-                CreateGhostMaterial(def.name + "_Ghost"), def.snapType);
+            // ★ Ghost는 Real을 복제하여 생성 (소켓 유실 원천 차단)
+            ghostPrefabs[i] = CreateGhostFromReal(
+                realPrefabs[i], def.name + "_Ghost",
+                CreateGhostMaterial(def.name + "_Ghost"));
         }
 
         // ── 2. Ensure BuildingManager ─────────────────────────────────────────
@@ -84,12 +86,30 @@ public class BuildingSetupTool : Editor
         }
 
         // ── 2.5 Clean up existing _Instance objects ──────────────────────────
-        // Destroy all existing ghosts to prevent duplicates
+        // ★ 4.15-4: 쓰레기 오브젝트 딥클린 (클론 증식 원천 차단)
         var existingGhosts = Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         foreach (var eg in existingGhosts)
         {
-            if (eg.name.EndsWith("_Ghost_Instance"))
+            // EndsWith는 "(Clone)" 접미사나 공백 때문에 매칭 실패 가능성이 높으므로 Contains 사용
+            // Ghost 인스턴스로 추정되는, 씬에 남은 찌꺼기들 전부 파괴
+            if (eg != null && string.IsNullOrEmpty(AssetDatabase.GetAssetPath(eg)) && 
+                (eg.name.Contains("_Ghost") || eg.name.Contains("_Instance")))
+            {
                 Undo.DestroyObjectImmediate(eg);
+            }
+        }
+
+        // 추가 안전장치: BuildingManager의 기존 자식들도 모두 정리
+        if (bm != null && bm.transform.childCount > 0)
+        {
+            for (int i = bm.transform.childCount - 1; i >= 0; i--)
+            {
+                var child = bm.transform.GetChild(i).gameObject;
+                if (child.name.Contains("_Ghost") || child.name.Contains("_Instance"))
+                {
+                    Undo.DestroyObjectImmediate(child);
+                }
+            }
         }
 
         // ── 3. Instantiate ghost instances & assign piece list ─────────────────
@@ -137,6 +157,30 @@ public class BuildingSetupTool : Editor
         // ── 5. Build UI ────────────────────────────────────────────────────────
         CreateBuildingUI(bm);
 
+        // ── 6. ★ 자동 검증: Real vs Ghost 소켓 개수 비교 ──────────────────────
+        bool allMatch = true;
+        for (int i = 0; i < Pieces.Length; i++)
+        {
+            string pieceName = Pieces[i].name;
+            int realCount  = realPrefabs[i] != null
+                ? realPrefabs[i].GetComponentsInChildren<SnapPoint>(true).Length : 0;
+            int ghostCount = ghostPrefabs[i] != null
+                ? ghostPrefabs[i].GetComponentsInChildren<SnapPoint>(true).Length : 0;
+
+            if (realCount != ghostCount)
+            {
+                Debug.LogError($"[치명적 오류] {pieceName}의 Ghost 소켓 개수가 Real과 다릅니다! (Real: {realCount}, Ghost: {ghostCount})");
+                allMatch = false;
+            }
+            else
+            {
+                Debug.Log($"[BuildingSetup] ✅ {pieceName} 소켓 검증 통과 (Real: {realCount}, Ghost: {ghostCount})");
+            }
+        }
+
+        if (allMatch)
+            Debug.Log("[BuildingSetup] ✅ 모든 프리팹의 소켓 개수가 일치합니다!");
+
         Selection.activeGameObject = bm.gameObject;
         Debug.Log("[BuildingSetup] ✅ Phase 3 setup complete!");
     }
@@ -164,38 +208,147 @@ public class BuildingSetupTool : Editor
         // Add SnapPoints as children
         AddSnapPoints(go, scale, snapType);
 
+        // ★ PlacementAnchor 생성 (다중 메시 Bounds 합산 → 최하단 중앙)
+        AddPlacementAnchor(go);
+
         var prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
         Object.DestroyImmediate(go);
         Debug.Log($"[BuildingSetup] Created Real prefab: {path}");
         return prefab;
     }
 
-    private static GameObject CreateOrLoadGhostPrefab(string prefabName, Vector3 scale,
-        Vector3 rotation, Material mat, SnapType snapType)
+    /// <summary>
+    /// ★ Ghost 프리팹을 Real 프리팹으로부터 복제하여 생성.
+    /// SnapPoint 자식 오브젝트가 100% 보존됨.
+    /// </summary>
+    private static GameObject CreateGhostFromReal(GameObject realPrefab, string ghostName, Material ghostMat)
     {
-        string path = $"{PREFAB_FOLDER}/{prefabName}.prefab";
-        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-        if (existing != null) return existing;
+        string path = $"{PREFAB_FOLDER}/{ghostName}.prefab";
 
-        var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        go.name = prefabName;
-        go.transform.localScale    = scale;
-        go.transform.localRotation = Quaternion.Euler(rotation);
+        // 기존 Ghost가 있으면 삭제 후 재생성 (Real과 항상 동기화)
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null)
+            AssetDatabase.DeleteAsset(path);
 
-        var r = go.GetComponent<Renderer>();
-        if (r != null && mat != null) r.sharedMaterial = mat;
+        // ★ 핵심: Real 프리팹을 통째로 복제
+        var go = Object.Instantiate(realPrefab);
+        go.name = ghostName;
+        go.SetActive(true); // ★ 4.15-1: 고스트 활성화 보장
 
-        // Remove collider — ghost must not block raycast
-        var col = go.GetComponent<Collider>();
-        if (col != null) Object.DestroyImmediate(col);
+        // Ghost 후처리 1: 머티리얼을 반투명 Ghost 머티리얼로 교체
+        var renderers = go.GetComponentsInChildren<Renderer>(true);
+        foreach (var r in renderers)
+        {
+            if (r != null && ghostMat != null)
+                r.sharedMaterial = ghostMat;
+            if (r != null) r.enabled = true; // ★ 4.15-1: 렌더러 강제 활성화
+        }
 
-        // Add SnapPoints as children
-        AddSnapPoints(go, scale, snapType);
+        // Ghost 후처리 2: 콜라이더 제거 (Ghost는 레이캐스트를 방해하면 안 됨)
+        var colliders = go.GetComponentsInChildren<Collider>(true);
+        foreach (var col in colliders)
+        {
+            Object.DestroyImmediate(col);
+        }
+
+        // ★ 절대 자식 오브젝트(SnapPoint 등)를 삭제하지 않는다!
 
         var prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
         Object.DestroyImmediate(go);
-        Debug.Log($"[BuildingSetup] Created Ghost prefab: {path}");
+
+        int socketCount = prefab.GetComponentsInChildren<SnapPoint>(true).Length;
+        Debug.Log($"[BuildingSetup] Created Ghost prefab: {path} (Sockets: {socketCount})");
         return prefab;
+    }
+
+    // ── PlacementAnchor generator ─────────────────────────────────────────────
+
+    /// <summary>
+    /// 다중 MeshFilter의 Bounds를 루트 로컬 기준으로 합산하여
+    /// 최하단 중앙에 PlacementAnchor 자식 오브젝트를 생성 (Bake).
+    /// </summary>
+    private static void AddPlacementAnchor(GameObject root)
+    {
+        // 기존 Anchor가 있으면 삭제 후 재생성
+        var existing = root.transform.Find("PlacementAnchor");
+        if (existing != null) Object.DestroyImmediate(existing.gameObject);
+
+        MeshFilter[] meshFilters = root.GetComponentsInChildren<MeshFilter>(true);
+        if (meshFilters.Length == 0)
+        {
+            Debug.LogWarning($"[BuildingSetup] {root.name}: MeshFilter가 없어 PlacementAnchor를 생성할 수 없습니다.");
+            return;
+        }
+
+        // 통합 Bounds를 루트 로컬 공간에서 계산
+        bool initialized = false;
+        Bounds combinedBounds = new Bounds();
+
+        foreach (var mf in meshFilters)
+        {
+            if (mf.sharedMesh == null) continue;
+            Bounds meshBounds = mf.sharedMesh.bounds;
+
+            // 메시 Bounds의 8개 코너를 루트 로컬 공간으로 변환
+            Vector3 center = meshBounds.center;
+            Vector3 ext = meshBounds.extents;
+            Vector3[] corners = new Vector3[8]
+            {
+                center + new Vector3( ext.x,  ext.y,  ext.z),
+                center + new Vector3( ext.x,  ext.y, -ext.z),
+                center + new Vector3( ext.x, -ext.y,  ext.z),
+                center + new Vector3( ext.x, -ext.y, -ext.z),
+                center + new Vector3(-ext.x,  ext.y,  ext.z),
+                center + new Vector3(-ext.x,  ext.y, -ext.z),
+                center + new Vector3(-ext.x, -ext.y,  ext.z),
+                center + new Vector3(-ext.x, -ext.y, -ext.z),
+            };
+
+            foreach (var corner in corners)
+            {
+                // 메시 로컬 → 월드 → 루트 로컬
+                Vector3 worldPos = mf.transform.TransformPoint(corner);
+                Vector3 rootLocal = root.transform.InverseTransformPoint(worldPos);
+
+                if (!initialized)
+                {
+                    combinedBounds = new Bounds(rootLocal, Vector3.zero);
+                    initialized = true;
+                }
+                else
+                {
+                    combinedBounds.Encapsulate(rootLocal);
+                }
+            }
+        }
+
+        if (!initialized) return;
+
+        // ★ 4.15-1: NaN/Infinity 방어
+        Vector3 bc = combinedBounds.center;
+        Vector3 bm = combinedBounds.min;
+        if (float.IsNaN(bc.x) || float.IsNaN(bc.y) || float.IsNaN(bc.z) ||
+            float.IsNaN(bm.x) || float.IsNaN(bm.y) || float.IsNaN(bm.z) ||
+            float.IsInfinity(bc.x) || float.IsInfinity(bc.y) || float.IsInfinity(bc.z) ||
+            float.IsInfinity(bm.x) || float.IsInfinity(bm.y) || float.IsInfinity(bm.z))
+        {
+            Debug.LogWarning($"[BuildingSetup] {root.name}: Bounds에 NaN/Infinity 감지. Anchor를 (0,0,0)으로 초기화합니다.");
+            var safeAnchor = new GameObject("PlacementAnchor");
+            safeAnchor.transform.SetParent(root.transform, false);
+            safeAnchor.transform.localPosition = Vector3.zero;
+            return;
+        }
+
+        // 최하단 중앙 포인트
+        Vector3 bottomCenter = new Vector3(
+            combinedBounds.center.x,
+            combinedBounds.min.y,
+            combinedBounds.center.z);
+
+        var anchor = new GameObject("PlacementAnchor");
+        anchor.transform.SetParent(root.transform, false);
+        anchor.transform.localPosition = bottomCenter;
+
+        Debug.Log($"[BuildingSetup] PlacementAnchor for {root.name}: localPos={bottomCenter}");
     }
 
     // ── SnapPoint generator ───────────────────────────────────────────────────
@@ -250,6 +403,18 @@ public class BuildingSetupTool : Editor
             snapComp.socketId       = id;
             snapComp.snapType       = sType;
             snapComp.compatibleTypes = compat;
+
+            // ★ 4.15-24A: 물리적 스냅 탐색을 위한 Collider 및 레이어 추가
+            sp.layer = LayerMask.NameToLayer("SnapPoint");
+            var col = sp.AddComponent<SphereCollider>();
+            col.isTrigger = true;
+            col.radius = 0.15f;
+
+            // ★ Depth-1 검증: SnapPoint는 반드시 루트의 직계 자식이어야 함
+            if (sp.transform.parent != root.transform)
+            {
+                Debug.LogError($"[BuildingSetup] SnapPoint '{id}' is NOT a direct child of root '{root.name}'! Depth violation.");
+            }
         }
     }
 
@@ -269,7 +434,20 @@ public class BuildingSetupTool : Editor
         var scaler = canvasGO.AddComponent<CanvasScaler>();
         scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
-        canvasGO.AddComponent<GraphicRaycaster>();
+        if (canvasGO.GetComponent<GraphicRaycaster>() == null)
+            canvasGO.AddComponent<GraphicRaycaster>();
+
+        // ── EventSystem 검사 및 자동 생성 (4.15-5) ───────────────────────────
+        var es = Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
+        if (es == null)
+        {
+            var esGO = new GameObject("EventSystem");
+            esGO.AddComponent<UnityEngine.EventSystems.EventSystem>();
+            // ★ 4.15-9 InputFix: 최신 Input System 패키지에 맞춘 모듈 부착
+            esGO.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+            Undo.RegisterCreatedObjectUndo(esGO, "Create EventSystem");
+            Debug.Log("[BuildingSetup] Created EventSystem with InputSystemUIInputModule.");
+        }
 
         // ── Panel (bottom-centre, compact) ───────────────────────────────────
         var panelGO   = new GameObject("Panel_BuildingBar");
@@ -305,21 +483,21 @@ public class BuildingSetupTool : Editor
             btnGO.transform.SetParent(panelGO.transform, false);
             var btnImg = btnGO.AddComponent<Image>();
             btnImg.color = new Color(0.18f, 0.15f, 0.12f, 0.95f);
+            btnImg.raycastTarget = true; // ★ 4.15-5: 광선 충돌 허용 강제 지정
             bm.slotHighlights[i] = btnImg; // store reference for highlighting
 
-            // Button component
-            var btn = btnGO.AddComponent<Button>();
+            // ★ 4.15-6: 전용 BuildingUISlot 스크립트 기반 UI 이벤트 자동 바인딩
+            var uiSlot = btnGO.AddComponent<BuildingUISlot>();
+            uiSlot.pieceIndex = capturedIdx;
+
+            // Button component (RequireComponent에 의해 생성됨)
+            var btn = btnGO.GetComponent<Button>();
             ColorBlock cb = btn.colors;
             cb.normalColor      = new Color(0.18f, 0.15f, 0.12f, 0.95f);
             cb.highlightedColor = new Color(0.45f, 0.70f, 0.25f, 1f);
             cb.pressedColor     = new Color(0.30f, 0.55f, 0.15f, 1f);
             cb.selectedColor    = new Color(0.35f, 0.60f, 0.20f, 1f);
             btn.colors = cb;
-            btn.onClick.AddListener(() =>
-            {
-                if (BuildingManager.Instance != null)
-                    BuildingManager.Instance.SelectPiece(capturedIdx);
-            });
 
             // Label (centred, two-line, bold)
             var labelGO  = new GameObject("Label");

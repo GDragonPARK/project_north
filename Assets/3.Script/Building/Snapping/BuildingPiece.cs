@@ -39,6 +39,12 @@ public class BuildingPiece : MonoBehaviour
 
     public List<SnapPoint> SnapPoints => snapPoints;
 
+    /// <summary>
+    /// ★ GC-free read-only accessor for cached SnapPoints (비활성 포함).
+    /// AutoSnapPass에서 GetComponentsInChildren 대신 사용.
+    /// </summary>
+    public IReadOnlyList<SnapPoint> CachedSockets => snapPoints;
+
     // ────────────────────── Lifecycle ──────────────────────
 
     private void Awake()

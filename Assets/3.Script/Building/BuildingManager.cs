@@ -19,7 +19,8 @@ public enum PlacementStatus
     NoSupport,
     NeedGround,
     TooSteep,
-    MustSnap
+    MustSnap,
+    InvalidSnap
 }
 
 [System.Serializable]
@@ -53,24 +54,28 @@ public class BuildingManager : MonoBehaviour
     public GameObject destroyVFX;
     public AudioClip destroySound;
     private AudioSource _audioSource;
-    private GameObject _snapMarker;
+    private GameObject _snapMarker;  // ★ Target socket marker (yellow bar)
+    private GameObject _ghostMarker; // ★ Ghost socket marker (cyan point)
 
     [Header("Debug")]
     public bool showSnapDebug = true;
 
     // Diagnostic states
-    private string _debugSnapStatus = "None"; // "Snapped", "TooFar", "NoCompatible", "FreePlace", "Searching..."
+    private string _debugSnapStatus = "None";
     private int _debugTargetCount = 0;
     private float _debugBestDist = 0f;
     private float _debugBestAlign = 0f;
     private float _debugBestScore = 0f;
-    private string _debugPlacementStatus = "Valid"; // "Valid", "SupportFail", "OverlapReject"
+    private string _debugPlacementStatus = "Valid";
     private string _debugOverlapColliderName = "None";
+    private float _debugAlignError = 0f;        // ★ 정합 오차
+    private PlacementStatus _lastPlacementStatus = PlacementStatus.Valid;
 
     // ── Pieces ────────────────────────────────────────────────────────────────
     [Header("Available Pieces")]
     public List<BuildingPieceEntry> availablePieces = new List<BuildingPieceEntry>();
     private int selectedIndex = 0;
+    private GameObject _currentGhostInstance;
 
     // ── Raycast & Snap ────────────────────────────────────────────────────────
     [Header("Raycast & Snap")]
@@ -78,9 +83,10 @@ public class BuildingManager : MonoBehaviour
     [SerializeField] private float snapDistance = 1.5f;
     [SerializeField] private float snapRadius   = 1.5f;
     [SerializeField] private LayerMask snapLayer;
+    [SerializeField] private float maxRayDistance = 500f;
 
     // ── Rotation ──────────────────────────────────────────────────────────────
-    private float currentYRotation = 0f;
+    private int rotationStepIndex = 0; // ★ 90° 스텝 단위 회전 (0,1,2,3)
 
     // Snap state
     private bool      _isSnapped;
@@ -89,6 +95,28 @@ public class BuildingManager : MonoBehaviour
 
     // Support state
     private bool _hasSupport;
+
+    // ── NonAlloc & AutoSnap Optimization ──────────────────────────────────────
+    private readonly Collider[] _snapColliders = new Collider[128];
+    private float _lastBufferWarnTime = -999f;
+
+    // Cutoff constants
+    private const float MAX_SNAP_DIST = 0.6f;
+    private const float MIN_ALIGN_DOT = 0.7f;
+    private const float ALIGN_WEIGHT  = 0.3f;
+    private const float VIEW_WEIGHT   = 0.03f; // tie-breaker only
+
+    // Sticky Snap state (히스테리시스)
+    private bool      _hasStickySnap;
+    private SnapPoint _stickyTarget;
+    private SnapPoint _stickyGhost;
+    private float     _stickyScore;
+
+    // ★ Stability Lock: Release 경계 안정화
+    private bool _snapReleasedThisFrame = false;
+
+    // ★ Stability Lock: MPB 호출 최소화
+    private int _prevColorState = -1; // 0=deepGreen, 1=lightGreen, 2=red
 
     // ── Camera Control (Build Mode) ───────────────────────────────────────────
     [Header("Camera Control")]
@@ -114,6 +142,26 @@ public class BuildingManager : MonoBehaviour
     private static readonly int ColorProp = Shader.PropertyToID("_BaseColor");
     private bool           snapEnabled = true;
 
+    // ── 4.15-15: 시각적 보간(스무딩) ──────────────────────────────────────────────
+    [Header("Ghost Smoothing")]
+    [SerializeField, Range(0.001f, 0.2f)] private float positionSmoothTime = 0.05f;
+    [SerializeField, Range(1f, 50f)] private float rotationSmoothSpeed = 25f;
+    private Vector3 _smoothVelocity;
+
+    // ── 4.15-13: Placement Fallback (허공 조준 튀는 현상 방지) ────────────────
+    [Header("Placement Fallback")]
+    private Vector3 _lastValidPos;
+    private Quaternion _lastValidRot;
+
+    // ── 4.15-14: GC 없는 두꺼운 충돌 탐색 체계 ─────────────────────────────────
+    private readonly RaycastHit[] _hitBuffer = new RaycastHit[16];
+    private const float SPHERE_CAST_RADIUS = 0.05f;
+
+    // ── 4.15-12: LayerMask & Ghost Collision Fix ──────────────────────────────
+    [Header("Physics & Targeting")]
+    [SerializeField] private LayerMask _placementMask; // 보통 Default, Ground, Building 등만 포함
+    [SerializeField] private Transform _playerRoot;    // 플레이어 예외 처리용 (필요시 사용)
+
     [Header("Building Categories")]
     public List<BuildingCategorySO> categories = new List<BuildingCategorySO>();
 
@@ -121,23 +169,56 @@ public class BuildingManager : MonoBehaviour
     private int _groundLayer;
     private int _buildingLayer;
 
+    // ── 4.15-24A: Magnetic Snap ───────────────────────────────────────────────
+    [Header("Magnetic Snap")]
+    [SerializeField] private bool enableMagneticSnap = true;
+    [SerializeField] private bool enableRotationSnap = true;
+    [SerializeField] private bool enableBoundsSnap = true;
+    [SerializeField] private bool enableSnapDebug = true;
+    private int _snapPointMask;
+    private readonly Collider[] _magneticSnapHits = new Collider[64];
+
+    // ── 4.15-26: Bounds Snap Hysteresis ───────────────────────────────────────
+    [Header("Bounds Snap Tuning")]
+    [SerializeField] private float boundsSnapLockTime = 0.12f;
+    [SerializeField] private float boundsSnapEnterDist = 0.25f;
+    [SerializeField] private float boundsSnapExitDist = 0.35f;
+    [SerializeField] private float boundsEdgeThreshold = 0.35f; // ★ 4.15-28: Edge-Snap threshold
+
+    // ★ 4.15-30: Edge-Snap Hysteresis Variables
+    private Collider _lockedEdgeTarget;
+    private int _lockedEdgeAxis = -1; // 0: dxMax, 1: dxMin, 2: dzMax, 3: dzMin
+    private float _lockMargin = 0.25f;
+
+    private bool _boundsSnapLocked;
+    private Collider _lockedTarget;
+    private Vector3 _lockedNormal;
+    private string _lockedAxis;
+    private float _snapLockUntilTime;
+
     // ═══════════════════════════════════════════════════════════════════════════
     // Lifecycle
     // ═══════════════════════════════════════════════════════════════════════════
 
     private void Awake()
     {
+        BuildingManager[] existingManagers = FindObjectsByType<BuildingManager>(FindObjectsSortMode.None);
+        if (existingManagers.Length > 1)
+        {
+            if (Instance != null && Instance != this)
+            {
+                Debug.LogWarning($"[UI DIAGNOSTICS] Duplicate BuildingManager found on {gameObject.name}. Destroying this duplicate!");
+                Destroy(gameObject);
+                return;
+            }
+        }
+
         if (Instance == null)
         {
             Instance = this;
             transform.parent = null;
             DontDestroyOnLoad(gameObject);
             Debug.Log("[BuildingManager] Awake -> Instance assigned.");
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
         }
 
         buildLayer = LayerMask.GetMask("Ground", "Building", "Terrain");
@@ -147,18 +228,30 @@ public class BuildingManager : MonoBehaviour
         if (_audioSource == null) _audioSource = gameObject.AddComponent<AudioSource>();
         _audioSource.playOnAwake = false;
 
-        // Prepare Snap Marker
+        // Prepare Target Snap Marker (노란 바)
         _snapMarker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        _snapMarker.name = "SnapMarker";
+        _snapMarker.name = "TargetMarker";
         Destroy(_snapMarker.GetComponent<Collider>());
         _snapMarker.transform.localScale = Vector3.one * 0.2f;
         var mr = _snapMarker.GetComponent<Renderer>();
-        mr.material.color = Color.yellow; // default yellow
+        mr.material.color = Color.yellow;
         mr.material.SetFloat("_Glossiness", 0f);
         _snapMarker.transform.SetParent(this.transform);
         _snapMarker.SetActive(false);
+
+        // ★ Prepare Ghost Snap Marker (시안 작은 점)
+        _ghostMarker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        _ghostMarker.name = "GhostMarker";
+        Destroy(_ghostMarker.GetComponent<Collider>());
+        _ghostMarker.transform.localScale = Vector3.one * 0.1f;
+        var gmr = _ghostMarker.GetComponent<Renderer>();
+        gmr.material.color = Color.cyan;
+        gmr.material.SetFloat("_Glossiness", 0f);
+        _ghostMarker.transform.SetParent(this.transform);
+        _ghostMarker.SetActive(false);
         _groundLayer   = LayerMask.NameToLayer("Ground");
         _buildingLayer = LayerMask.NameToLayer("Building");
+        _snapPointMask = LayerMask.GetMask("SnapPoint");
         if (buildableLayer.value == 0) buildableLayer = buildLayer;
 
         CreateGhostMaterials();
@@ -168,8 +261,7 @@ public class BuildingManager : MonoBehaviour
         _camInputBridge = Object.FindFirstObjectByType<CameraInputBridge>();
         _cameraZoom     = Object.FindFirstObjectByType<CameraZoom>();
 
-        foreach (var p in availablePieces)
-            if (p.ghostPrefab != null) p.ghostPrefab.SetActive(false);
+        // Ghost prefabs are no longer modified directly in Awake to avoid asset corruption.
 
         Debug.Log("[BuildingManager] Phase 5 Initialized (SmartSnap + Support).");
 
@@ -190,16 +282,16 @@ public class BuildingManager : MonoBehaviour
         if (kb.bKey.wasPressedThisFrame) ToggleBuildMode();
         if (!isBuildMode) return;
 
-        if (kb.digit1Key.wasPressedThisFrame) SelectPiece(0);
-        if (kb.digit2Key.wasPressedThisFrame) SelectPiece(1);
-        if (kb.digit3Key.wasPressedThisFrame) SelectPiece(2);
-        if (kb.digit4Key.wasPressedThisFrame) SelectPiece(3);
+        // ★ 4.15-2: 숫자키(1~4) 건축 단축키 제거 — 퀵슬롯 충돌 방지
+        // 부품 선택은 하단 UI 버튼 클릭(SelectPiece)으로만 수행
 
+        // ★ Fix 1: 스텝 회전 중 스냅 유지 — Sticky가 살아있으면 _isSnapped을 해제하지 않음
         if (mouse != null)
         {
             float scroll = mouse.scroll.ReadValue().y;
-            if (scroll > 0.1f)       { currentYRotation += 45f; _isSnapped = false; }
-            else if (scroll < -0.1f) { currentYRotation -= 45f; _isSnapped = false; }
+            if (scroll > 0.1f)       { rotationStepIndex += 1; }
+            else if (scroll < -0.1f) { rotationStepIndex -= 1; }
+            // 스냅 상태는 Sticky Release 조건에 의해서만 해제됨
         }
 
         if (kb.escapeKey.wasPressedThisFrame)
@@ -210,13 +302,20 @@ public class BuildingManager : MonoBehaviour
         }
 
         if (isBuildMode) HandleCameraRotation(mouse);
+    }
 
+    // ★ 4.15-13: 시네머신과의 프레임 엇박자 지연 해결을 위해 레이캐스트를 LateUpdate로 이동
+    void LateUpdate()
+    {
+        var mouse = Mouse.current;
+        if (mouse == null || !isBuildMode) return;
         var cam = Camera.main;
-        if (cam != null && isBuildMode)
-        {
-            HandleSimpleGhostPlacement(mouse);
-            HandleDeconstruction();
-        }
+        if (cam == null) return;
+
+        // ★ 4.15-11: UI 관통 설치 방지(이전 버전)가 고스트 이동까지 통째로 차단하던 문제 해결
+        // 이곳에 있던 방어벽을 제거하고, 클릭을 실제로 수행하는 하위 로직(ValidateAndPlacePass, HandleDeconstruction)으로 이동시킴
+        HandleSimpleGhostPlacement(mouse);
+        HandleDeconstruction();
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -230,171 +329,510 @@ public class BuildingManager : MonoBehaviour
         if (cam == null) return;
 
         var ghostGO = GetCurrentGhostPrefab();
-        if (ghostGO == null) return;
+        if (ghostGO == null)
+        {
+            Debug.LogWarning("[BuildingManager] LateUpdate: _currentGhostInstance 필드가 NULL입니다! (추적 불가)");
+            return;
+        }
 
-        int mask = buildableLayer.value != 0 ? buildableLayer.value : buildLayer.value;
+        // ★ 4.15-12: 레이캐스트 마스크 통일 (_placementMask 우선, 없으면 fallback)
+        int mask = _placementMask.value != 0 ? _placementMask.value : 
+                   (buildableLayer.value != 0 ? buildableLayer.value : buildLayer.value);
+                   
         Ray ray  = cam.ScreenPointToRay(mouse.position.ReadValue());
 
-        if (Physics.Raycast(ray, out RaycastHit hit, 500f, mask))
+        // ★ 디버그 레이저: 씬 뷰에서 레이캐스트 탐색 범위 시각화
+        Debug.DrawRay(ray.origin, ray.direction * maxRayDistance, Color.yellow);
+
+        // ★ 4.15-14: SphereCastNonAlloc (트리거 무시)
+        int hitCount = Physics.SphereCastNonAlloc(ray, SPHERE_CAST_RADIUS, _hitBuffer, maxRayDistance, mask, QueryTriggerInteraction.Ignore);
+        
+        bool foundValidHit = false;
+        RaycastHit bestHit = default;
+        float bestDist = float.MaxValue;
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            var h = _hitBuffer[i];
+            if (h.collider.isTrigger) continue;
+            if (_playerRoot != null && h.collider.transform.root == _playerRoot) continue;
+
+            if (h.distance < bestDist)
+            {
+                bestDist = h.distance;
+                bestHit = h;
+                foundValidHit = true;
+            }
+        }
+
+        Vector3 targetPos;
+        Quaternion targetRot;
+
+        if (foundValidHit)
         {
             if (!ghostGO.activeSelf) ghostGO.SetActive(true);
 
-            // Phase 4.12: 2-Pass Snap Architecture + Rules Pipeline
-            BasePlacementPass(hit, ghostGO);
-            AutoSnapPass(ghostGO);
-            ValidateAndPlacePass(mouse, ghostGO, hit);
+            // Phase 1: 스냅 판정을 가장 먼저 수행하여 _isSnapped 확정
+            targetPos = bestHit.point;
+            targetRot = Quaternion.identity;
+            ApplySnapAndCorrection(ref targetPos, ref targetRot, ghostGO, bestHit);
+
+            // Phase 2: 엄격한 if-else 분기 (카메라 회전 누수 완벽 차단)
+            if (_isSnapped && _snapTargetSocket != null)
+            {
+                // [오직 스냅 정렬만 수행] — 카메라, hit.normal 일체 참조 금지!
+                Transform rootSocket = ghostGO.transform.Find("RootSocket");
+                if (rootSocket != null && _snapTargetSocket != null)
+                {
+                    // 1. 회전 정렬: 타겟 소켓의 월드 회전을 기준으로 고스트의 회전을 역산하여 일치시킴
+                    ghostGO.transform.rotation = _snapTargetSocket.rotation * Quaternion.Inverse(rootSocket.localRotation);
+
+                    // 2. 위치 정렬: [핵심] 현재 회전된 고스트의 '루트'와 '소켓' 사이의 '실제 월드 거리'를 구함
+                    Vector3 currentWorldOffset = ghostGO.transform.position - rootSocket.position;
+                    
+                    // 3. 타겟 소켓 위치에 그 월드 거리만큼 더해서 고스트 전체를 한 번에 이동
+                    targetPos = _snapTargetSocket.position + currentWorldOffset;
+                    targetRot = ghostGO.transform.rotation;
+                }
+                // RootSocket 없으면 ApplySnapAndCorrection의 결과를 그대로 사용
+            }
+            else
+            {
+                // [자유 배치(Free Placement)] — 스냅 실패 시에만 실행
+                targetPos = bestHit.point;
+                targetRot = Quaternion.Euler(0, rotationStepIndex * 90f, 0);
+            }
+
+            // Phase 3: 트랜스폼 적용 및 설치 판정
+            ghostGO.transform.position = targetPos;
+            ghostGO.transform.rotation = targetRot;
+
+            ValidateAndPlacePass(mouse, ghostGO, bestHit);
+
+            targetPos = ghostGO.transform.position;
+            targetRot = ghostGO.transform.rotation;
+
+            _lastValidPos = targetPos;
+            _lastValidRot = targetRot;
         }
         else
         {
-            if (ghostGO.activeSelf) ghostGO.SetActive(false);
+            // 허공 조준 시 마지막 유효 위치 유지
+            if (!ghostGO.activeSelf) ghostGO.SetActive(true);
             _isSnapped  = false;
             _hasSupport = false;
             _snapMarker.SetActive(false);
+            _ghostMarker.SetActive(false);
+
+            targetPos = _lastValidPos;
+            targetRot = Quaternion.AngleAxis(rotationStepIndex * 90f, Vector3.up);
+            
+            ApplyGhostSupportFeedback(ghostGO, PlacementStatus.NoSupport);
+        }
+
+        // ★ 4.15-15: 최종 보간 적용 (무조건 실행)
+        ghostGO.transform.position = Vector3.SmoothDamp(
+            ghostGO.transform.position, 
+            targetPos, 
+            ref _smoothVelocity, 
+            positionSmoothTime, 
+            Mathf.Infinity, 
+            Time.deltaTime
+        );
+
+        ghostGO.transform.rotation = Quaternion.Slerp(
+            ghostGO.transform.rotation, 
+            targetRot, 
+            Time.deltaTime * rotationSmoothSpeed
+        );
+    }
+
+    private void ApplySnapAndCorrection(ref Vector3 pos, ref Quaternion rot, GameObject ghostGO, RaycastHit hit)
+    {
+        _isSnapped = false;
+        _snapTargetSocket = null;
+        _stickyGhost = null;
+
+        if (enableMagneticSnap)
+        {
+            // 1.5f 반경, ~0 (모든 레이어) 강제 검색
+            int count = Physics.OverlapSphereNonAlloc(hit.point, 1.5f, _magneticSnapHits, ~0, QueryTriggerInteraction.Collide);
+            
+            if (enableSnapDebug)
+            {
+                // Debug.Log($"[SNAP] overlap count={count}");
+            }
+            
+            if (count > 0)
+            {
+                SnapPoint chosenTarget = null;
+                float bestTargetDist = float.MaxValue;
+
+                // 1. 가장 가까운 타겟 소켓 찾기
+                for (int i = 0; i < count; i++)
+                {
+                    var hitCol = _magneticSnapHits[i];
+
+                    // 1. 태그가 SnapPoint가 아니면 무시
+                    if (!hitCol.CompareTag("SnapPoint")) continue;
+
+                    // 2. 검색된 소켓이 현재 조종 중인 고스트(ghost)의 자식 객체라면 무시 (자기 자신 스냅 방지)
+                    if (hitCol.transform.IsChildOf(ghostGO.transform)) continue;
+
+                    var sp = hitCol.GetComponent<SnapPoint>();
+                    if (sp == null) continue;
+
+                    float dist = Vector3.Distance(hit.point, sp.transform.position);
+                    if (dist < bestTargetDist)
+                    {
+                        bestTargetDist = dist;
+                        chosenTarget = sp;
+                    }
+                }
+
+                // 2. 100% 확정 위치/회전 매칭
+                if (chosenTarget != null)
+                {
+                    var ghostPiece = ghostGO.GetComponent<BuildingPiece>();
+                    IReadOnlyList<SnapPoint> ghostSockets = ghostPiece != null ? ghostPiece.CachedSockets : null;
+                    
+                    if (ghostSockets == null || ghostSockets.Count == 0)
+                    {
+                        var fallback = ghostGO.GetComponentsInChildren<SnapPoint>(true);
+                        if (fallback.Length > 0) ghostSockets = fallback;
+                    }
+
+                    if (ghostSockets != null && ghostSockets.Count > 0)
+                    {
+                        SnapPoint chosenGhost = null;
+                        float bestGhostDist = float.MaxValue;
+
+                        // 기준 소켓 찾기: 가장 타겟에 가까운 것 매칭 (마우스 위치 기준에 가까워지도록 유도)
+                        for (int i = 0; i < ghostSockets.Count; i++)
+                        {
+                            var gp = ghostSockets[i];
+                            // 고스트의 소켓들이 겹쳐있을 수 있으므로 hit.point와 가까운 타겟을 기준으로 검사
+                            float dist = Vector3.Distance(chosenTarget.transform.position, gp.transform.position);
+                            if (dist < bestGhostDist)
+                            {
+                                bestGhostDist = dist;
+                                chosenGhost = gp;
+                            }
+                        }
+
+                        if (chosenGhost != null)
+                        {
+                            // 3. 절대 정렬 공식 (Absolute Alignment - Scale Independent)
+                            Transform rootSocket = ghostGO.transform.Find("RootSocket");
+                            if (rootSocket != null && chosenTarget != null)
+                            {
+                                // 1. 회전 정렬: 타겟 소켓의 월드 회전을 기준으로 고스트의 회전을 역산하여 일치시킴
+                                ghostGO.transform.rotation = chosenTarget.transform.rotation * Quaternion.Inverse(rootSocket.localRotation);
+
+                                // 2. 위치 정렬: [핵심] 현재 회전된 고스트의 '루트'와 '소켓' 사이의 '실제 월드 거리'를 구함
+                                Vector3 currentWorldOffset = ghostGO.transform.position - rootSocket.position;
+                                
+                                // 3. 타겟 소켓 위치에 그 월드 거리만큼 더해서 고스트 전체를 한 번에 이동
+                                pos = chosenTarget.transform.position + currentWorldOffset;
+                                rot = ghostGO.transform.rotation;
+                            }
+                            else
+                            {
+                                // RootSocket이 없는 프리팹 폴백
+                                ghostGO.transform.rotation = chosenTarget.transform.rotation * Quaternion.Inverse(chosenGhost.transform.localRotation);
+                                Vector3 currentWorldOffset = ghostGO.transform.position - chosenGhost.transform.position;
+                                pos = chosenTarget.transform.position + currentWorldOffset;
+                                rot = ghostGO.transform.rotation;
+                            }
+
+                            if (enableSnapDebug)
+                            {
+                                Debug.Log($"[UNIVERSAL SOCKET SNAP] target={chosenTarget.name} finalPos={pos}");
+                            }
+
+                            _isSnapped = true;
+                            _snapTargetSocket = chosenTarget.transform;
+                            _stickyGhost = chosenGhost;
+                            return;
+                        }
+                    }
+                }
+            }
         }
     }
 
     private void BasePlacementPass(RaycastHit hit, GameObject ghostGO)
     {
-        // Smoothly follow the hit point
-        ghostGO.transform.position = Vector3.Lerp(
-            ghostGO.transform.position, hit.point, Time.deltaTime * 30f);
-        
-        // Base rotation from user input
-        ghostGO.transform.rotation = Quaternion.Euler(0, currentYRotation, 0);
+        if (!ghostGO.activeSelf) ghostGO.SetActive(true);
+
+        // Base rotation from user input (90° steps)
+        Quaternion ghostRot = Quaternion.AngleAxis(rotationStepIndex * 90f, Vector3.up);
+        ghostGO.transform.rotation = ghostRot;
+
+        // ★ Fix 2: Snap Release 직후 1프레임은 Anchor 보정 스킵 (위치 튐 방지)
+        if (_snapReleasedThisFrame)
+        {
+            _snapReleasedThisFrame = false;
+            _isSnapped = false;
+            // ★ 4.15-22: 이전 위치 유지 대신 hit.point를 직접 대입 (고정 버그 방지)
+            ghostGO.transform.position = hit.point;
+            return;
+        }
+
+        // PlacementAnchor 기반 지면 보정 (스냅 전 자유 배치에만 적용)
+        Vector3 targetPos = hit.point;
+        Transform anchor = ghostGO.transform.Find("PlacementAnchor");
+        if (anchor != null)
+        {
+            Vector3 anchorWorldOffset = ghostRot * anchor.localPosition;
+            if (float.IsNaN(anchorWorldOffset.x) || float.IsNaN(anchorWorldOffset.y) || float.IsNaN(anchorWorldOffset.z))
+            {
+                Debug.LogWarning("[BuildingManager] Anchor offset is NaN! Using zero.");
+                anchorWorldOffset = Vector3.zero;
+            }
+            targetPos = hit.point - anchorWorldOffset;
+        }
+
+        // ★ 4.15-22: 직접 대입 (Lerp 제거 — 스무딩은 HandleSimpleGhostPlacement 끝에서 SmoothDamp로 처리)
+        ghostGO.transform.position = targetPos;
         
         _isSnapped = false;
     }
 
     private void AutoSnapPass(GameObject ghostGO)
     {
-        // Reset debug vars for this frame
-        _debugSnapStatus = "Searching...";
+        // Reset debug vars
+        _debugSnapStatus  = "Searching...";
         _debugTargetCount = 0;
-        _debugBestDist = 0f;
-        _debugBestAlign = 0f;
-        _debugBestScore = 0f;
+        _debugBestDist    = 0f;
+        _debugBestAlign   = 0f;
+        _debugBestScore   = 0f;
 
-        // 1. Bypass check (Alt Key)
+        // 1. Alt = 자유 배치
         if (Keyboard.current != null && Keyboard.current.altKey.isPressed)
         {
+            ReleaseStickySnap();
             _debugSnapStatus = "FreePlace (Alt)";
-            return; // Free placement mode
+            return;
         }
 
-        // 2. Volumetric search for nearby buildings
-        Collider[] hitColliders = Physics.OverlapSphere(ghostGO.transform.position, 0.6f, 1 << _buildingLayer);
-        if (hitColliders.Length == 0) 
+        // ── 2. NonAlloc 볼류메트릭 검색 ────────────────────────────────────────
+        int hitCount = Physics.OverlapSphereNonAlloc(
+            ghostGO.transform.position, MAX_SNAP_DIST, _snapColliders, 1 << _buildingLayer, QueryTriggerInteraction.Collide);
+
+        // ★ Fix 4: 버퍼 포화 → 반경 축소 재시도
+        if (hitCount >= _snapColliders.Length)
         {
+            if (Time.time - _lastBufferWarnTime > 1f)
+            {
+                Debug.LogWarning($"[AutoSnap] Collider buffer full ({_snapColliders.Length}). Retrying with reduced radius.");
+                _lastBufferWarnTime = Time.time;
+            }
+            // 반경 50%로 축소하여 재시도 — 가까운 후보 우선
+            hitCount = Physics.OverlapSphereNonAlloc(
+                ghostGO.transform.position, MAX_SNAP_DIST * 0.5f, _snapColliders, 1 << _buildingLayer, QueryTriggerInteraction.Collide);
+        }
+
+        if (hitCount == 0)
+        {
+            ReleaseStickySnap();
             _debugSnapStatus = "No Buildings Nearby";
             return;
         }
 
-        // Collect target sockets
-        List<SnapPoint> targetSockets = new List<SnapPoint>();
-        foreach (var col in hitColliders)
+        // ── 3. Ghost 소켓 캐싱 조회 ──────────────────────────────────────────
+        var ghostPiece = ghostGO.GetComponent<BuildingPiece>();
+        IReadOnlyList<SnapPoint> ghostSockets = ghostPiece != null
+            ? ghostPiece.CachedSockets : null;
+
+        // 캐시가 없으면 fallback (최초 1회만 발생 가능)
+        if (ghostSockets == null || ghostSockets.Count == 0)
         {
-            targetSockets.AddRange(col.GetComponentsInChildren<SnapPoint>());
+            var fallback = ghostGO.GetComponentsInChildren<SnapPoint>(true);
+            if (fallback.Length == 0)
+            {
+                ReleaseStickySnap();
+                _debugSnapStatus = "Ghost Missing Sockets";
+                return;
+            }
+            ghostSockets = fallback;
         }
 
-        _debugTargetCount = targetSockets.Count;
+        // ── 4. 카메라 뷰 방향 (tie-breaker용) ─────────────────────────────────
+        Vector3 camFwd = Vector3.forward;
+        var cam = Camera.main;
+        if (cam != null) camFwd = cam.transform.forward;
 
-        if (targetSockets.Count == 0) 
+        // ── 5. Sticky Snap 해제 조건 체크 ──────────────────────────────────────
+        if (_hasStickySnap && _stickyTarget != null && _stickyGhost != null)
         {
-            _debugSnapStatus = "No Sockets Found";
-            return;
+            Vector3 stickyGhostWorldPos = ghostGO.transform.TransformPoint(_stickyGhost.transform.localPosition);
+            float stickyDist = Vector3.Distance(_stickyTarget.transform.position, stickyGhostWorldPos);
+
+            Vector3 stickyGhostFwd = ghostGO.transform.TransformDirection(_stickyGhost.transform.forward);
+            float stickyAlign = Vector3.Dot(-_stickyTarget.transform.forward, stickyGhostFwd);
+
+            float releaseDist  = MAX_SNAP_DIST * 1.2f;
+            float releaseAlign = MIN_ALIGN_DOT - 0.1f;
+
+            if (stickyDist > releaseDist || stickyAlign < releaseAlign || _stickyTarget.isOccupied)
+            {
+                ReleaseStickySnap();
+            }
         }
 
-        // 3. Find compatible ghost sockets
-        SnapPoint[] ghostSockets = ghostGO.GetComponentsInChildren<SnapPoint>();
-        if (ghostSockets.Length == 0) 
-        {
-            _debugSnapStatus = "Ghost Missing Sockets";
-            return;
-        }
-
+        // ── 6. 전체 후보 스코어링 (Cutoff → Score → Best) ─────────────────────
         SnapPoint bestTarget = null;
         SnapPoint bestGhost  = null;
         float bestScore = float.MaxValue;
         float bestDist  = float.MaxValue;
         float bestAlignForDebug = 0f;
+        int totalTargetSockets  = 0;
 
-        foreach (var target in targetSockets)
+        for (int i = 0; i < hitCount; i++)
         {
-            if (target.isOccupied) continue;
+            var col = _snapColliders[i];
+            if (col == null) continue;
 
-            foreach (var ghost in ghostSockets)
+            // BuildingPiece 캐싱된 소켓 사용
+            var piece = col.GetComponent<BuildingPiece>();
+            if (piece == null) piece = col.GetComponentInParent<BuildingPiece>();
+            if (piece == null) continue;
+
+            var targetSockets = piece.CachedSockets;
+            if (targetSockets == null) continue;
+            totalTargetSockets += targetSockets.Count;
+
+            for (int t = 0; t < targetSockets.Count; t++)
             {
-                if (!ghost.CanConnectTo(target)) continue;
+                var target = targetSockets[t];
+                if (target == null || target.isOccupied) continue;
 
-                Vector3 ghostSocketWorldPos = ghostGO.transform.TransformPoint(ghost.transform.localPosition);
-                Vector3 ghostSocketWorldFwd = ghostGO.transform.TransformDirection(ghost.transform.forward);
-                
-                float dist  = Vector3.Distance(target.transform.position, ghostSocketWorldPos);
-                float align = Vector3.Dot(target.transform.forward, ghostSocketWorldFwd);
-                float score = dist + (1f - align) * 0.3f; // instruction formula
-
-                if (score < bestScore)
+                for (int g = 0; g < ghostSockets.Count; g++)
                 {
-                    bestScore  = score;
-                    bestDist   = dist;
-                    bestAlignForDebug = align;
-                    bestTarget = target;
-                    bestGhost  = ghost;
+                    var ghost = ghostSockets[g];
+                    if (!ghost.CanConnectTo(target)) continue;
+
+                    // Depth-1 검증
+                    if (ghost.transform.parent != ghostGO.transform) continue;
+
+                    Vector3 ghostWorldPos = ghostGO.transform.TransformPoint(ghost.transform.localPosition);
+                    Vector3 ghostWorldFwd = ghostGO.transform.TransformDirection(ghost.transform.forward);
+
+                    // ★ Cutoff 먼저 (점수 계산 전)
+                    float dist = Vector3.Distance(target.transform.position, ghostWorldPos);
+                    if (dist > MAX_SNAP_DIST) continue;
+
+                    float alignDot = Vector3.Dot(-target.transform.forward, ghostWorldFwd);
+                    if (alignDot < MIN_ALIGN_DOT) continue;
+
+                    // ★ 스코어링: dist + (1-align)*weight + (1-view)*viewWeight
+                    float align01 = Mathf.Clamp01(alignDot);
+                    Vector3 toTarget = (target.transform.position - ghostGO.transform.position).normalized;
+                    float view01 = Mathf.Clamp01(Vector3.Dot(camFwd, toTarget) * 0.5f + 0.5f);
+
+                    float score = dist + (1f - align01) * ALIGN_WEIGHT + (1f - view01) * VIEW_WEIGHT;
+
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                        bestDist  = dist;
+                        bestAlignForDebug = alignDot;
+                        bestTarget = target;
+                        bestGhost  = ghost;
+                    }
                 }
             }
         }
 
-        // Sync debug variables with the best found
-        _debugBestScore = bestScore;
-        _debugBestDist  = bestDist;
-        _debugBestAlign = bestAlignForDebug;
+        _debugTargetCount = totalTargetSockets;
+        _debugBestScore   = bestScore;
+        _debugBestDist    = bestDist;
+        _debugBestAlign   = bestAlignForDebug;
 
+        // ── 7. ★ Fix 3: Sticky Snap 히스테리시스 (분리된 메서드) ──────────────
+        EvaluateStickyHysteresis(ref bestTarget, ref bestGhost, bestScore);
+
+        // null 안전
         if (bestTarget == null || bestGhost == null)
         {
+            ReleaseStickySnap();
             _debugSnapStatus = "NoCompatible";
             return;
         }
 
-        // Apply Snap if within threshold
-        if (bestDist <= 0.5f)
+        // ── 8. 3단계 정합 공식 적용 ────────────────────────────────────────────
+        Transform targetSocket = bestTarget.transform;
+        Transform ghostSocket  = bestGhost.transform;
+
+        Vector3 upVector = (bestTarget.snapType == SnapType.Roof)
+            ? targetSocket.up : Vector3.up;
+
+        Quaternion baseRot  = Quaternion.LookRotation(-targetSocket.forward, upVector);
+        Quaternion stepRot  = Quaternion.AngleAxis(rotationStepIndex * 90f, upVector);
+        Quaternion finalRot = stepRot * baseRot * Quaternion.Inverse(ghostSocket.localRotation);
+        Vector3 snappedPos  = targetSocket.position - (finalRot * ghostSocket.localPosition);
+
+        ghostGO.transform.position = snappedPos;
+        ghostGO.transform.rotation = finalRot;
+
+        _isSnapped        = true;
+        _snapBaseRot      = finalRot;
+        _snapTargetSocket = targetSocket;
+
+        _debugSnapStatus = "Snapped!";
+    }
+
+    /// <summary>
+    /// ★ Fix 3: Sticky Snap 히스테리시스 평가 (가독성 분리)
+    /// - 기존 후보 유지 우선
+    /// - 새 후보는 15% 이상 좋아야 교체
+    /// - 후보 없으면 기존 Sticky 유지
+    /// </summary>
+    private void EvaluateStickyHysteresis(ref SnapPoint bestTarget, ref SnapPoint bestGhost, float bestScore)
+    {
+        bool hasNewCandidate = (bestTarget != null && bestGhost != null);
+
+        if (hasNewCandidate && _hasStickySnap)
         {
-            // Compute rotation
-            Vector3 targetFwd = -bestTarget.transform.forward;
-            Vector3 targetUp  =  bestTarget.transform.up;
-            Quaternion snapRot;
-            
-            if (targetFwd.sqrMagnitude > 0.01f)
-                snapRot = Quaternion.LookRotation(targetFwd, targetUp);
-            else
-                snapRot = Quaternion.identity;
-
-            Quaternion finalRot = snapRot * Quaternion.Inverse(bestGhost.transform.localRotation);
-
-            if (!Mathf.Approximately(currentYRotation, 0f))
-                finalRot = Quaternion.AngleAxis(currentYRotation, bestTarget.transform.up) * finalRot;
-
-            // Compute position
-            Transform targetSocket = bestTarget.transform;
-            Transform ghostSocket  = bestGhost.transform;
-
-            Vector3 ghostSocketWorldOffset = finalRot * ghostSocket.localPosition;
-            Vector3 snappedPos = targetSocket.position - ghostSocketWorldOffset;
-
-            // Apply to ghost
-            ghostGO.transform.position = snappedPos;
-            ghostGO.transform.rotation = finalRot;
-
-            // Cache state
-            _isSnapped        = true;
-            _snapBaseRot      = finalRot;
-            _snapTargetSocket = targetSocket;
-
-            _debugSnapStatus = "Snapped!";
+            // ── 교체 판정: 기존보다 15% 이상 좋아야 교체 ──
+            if (bestScore < _stickyScore * 0.85f)
+            {
+                _stickyTarget = bestTarget;
+                _stickyGhost  = bestGhost;
+                _stickyScore  = bestScore;
+            }
+            // ── 기존 유지 ──
+            bestTarget = _stickyTarget;
+            bestGhost  = _stickyGhost;
         }
-        else
+        else if (hasNewCandidate && !_hasStickySnap)
         {
-            _debugSnapStatus = "TooFar (>0.5)";
+            // ── 첫 스냅 등록 ──
+            _hasStickySnap = true;
+            _stickyTarget  = bestTarget;
+            _stickyGhost   = bestGhost;
+            _stickyScore   = bestScore;
         }
+        else if (!hasNewCandidate && _hasStickySnap)
+        {
+            // ── 새 후보 없음 → 기존 Sticky 유지 ──
+            bestTarget = _stickyTarget;
+            bestGhost  = _stickyGhost;
+        }
+        // else: 후보도 없고 Sticky도 없음 → bestTarget/bestGhost는 null 유지
+    }
+
+    /// <summary>
+    /// Sticky Snap 해제: 상태 초기화 + Release 경계 플래그 설정
+    /// </summary>
+    private void ReleaseStickySnap()
+    {
+        _hasStickySnap = false;
+        _stickyTarget  = null;
+        _stickyGhost   = null;
+        _stickyScore   = float.MaxValue;
+        _snapReleasedThisFrame = true; // ★ Fix 2: 1프레임 안정화
     }
 
 
@@ -448,12 +886,37 @@ public class BuildingManager : MonoBehaviour
         // Right-click to destroy (trigger ONLY on release, and ONLY if we didn't drag to rotate)
         if (mouse.rightButton.wasReleasedThisFrame && !_isRmbDragging)
         {
+            // ★ 4.15-11: UI 위 철거 클릭(우클릭) 완벽 방어
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+                return;
+
             Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
-            // Only hit objects explicitly on the Building layer
-            if (Physics.Raycast(ray, out RaycastHit hit, 500f, 1 << _buildingLayer))
+            
+            // ★ 4.15-14: 철거 레이캐스트도 SphereCast로 통일 (건물을 빗맞추는 현상 완화)
+            int hitCount = Physics.SphereCastNonAlloc(ray, SPHERE_CAST_RADIUS, _hitBuffer, 500f, 1 << _buildingLayer, QueryTriggerInteraction.Ignore);
+            
+            bool foundValidHit = false;
+            RaycastHit bestHit = default;
+            float bestDist = float.MaxValue;
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                var h = _hitBuffer[i];
+                if (h.collider.isTrigger) continue;
+                if (_playerRoot != null && h.collider.transform.root == _playerRoot) continue;
+
+                if (h.distance < bestDist)
+                {
+                    bestDist = h.distance;
+                    bestHit = h;
+                    foundValidHit = true;
+                }
+            }
+
+            if (foundValidHit)
             {
                 // Find root object in case we hit a child snap point or sub-collider
-                GameObject targetObj = hit.collider.gameObject;
+                GameObject targetObj = bestHit.collider.gameObject;
                 
                 // Usually custom buildings have their main component or are the top-level parent
                 // For safety, let's grab the topmost parent that is still on the building layer
@@ -474,6 +937,7 @@ public class BuildingManager : MonoBehaviour
                 _isSnapped = false;
                 _hasSupport = false;
                 if (_snapMarker) _snapMarker.SetActive(false);
+                if (_ghostMarker) _ghostMarker.SetActive(false);
             }
         }
     }
@@ -531,29 +995,41 @@ public class BuildingManager : MonoBehaviour
 
     private void ValidateAndPlacePass(Mouse mouse, GameObject ghostGO, RaycastHit hit)
     {
-        // --- 0. Update Snap Marker visibility ---
-        if (_isSnapped && _snapTargetSocket != null)
+        // --- 0. ★ 듀얼 마커 업데이트 ---
+        if (_isSnapped && _snapTargetSocket != null && _stickyGhost != null)
         {
             _snapMarker.SetActive(true);
             _snapMarker.transform.position = _snapTargetSocket.position;
+            _snapMarker.transform.rotation = _snapTargetSocket.rotation;
+
+            // Ghost마커: 스냅된 ghost socket의 월드 위치
+            Vector3 ghostSocketWorld = ghostGO.transform.TransformPoint(_stickyGhost.transform.localPosition);
+            _ghostMarker.SetActive(true);
+            _ghostMarker.transform.position = ghostSocketWorld;
+
+            // ★ 정합 오차 계산
+            _debugAlignError = Vector3.Distance(_snapTargetSocket.position, ghostSocketWorld);
         }
         else
         {
             _snapMarker.SetActive(false);
+            _ghostMarker.SetActive(false);
+            _debugAlignError = 0f;
         }
 
         // --- 1. Validation ---
         PlacementStatus status = ValidatePlacement(ghostGO, hit);
+        _lastPlacementStatus = status;
         bool isValid = (status == PlacementStatus.Valid);
 
-        _hasSupport = isValid; // For legacy logic compatibility
+        _hasSupport = isValid;
 
         // --- 2. Update Debug State ---
         _debugPlacementStatus = status.ToString();
-        if (status != PlacementStatus.Overlap) _debugOverlapColliderName = "None"; // Clear if not overlap
+        if (status != PlacementStatus.Overlap) _debugOverlapColliderName = "None";
 
-        // --- 3. Visual Feedback ---
-        ApplyGhostSupportFeedback(ghostGO, isValid); // Turns red if invalid, green if valid
+        // --- 3. ★ 3단 컨러 피드백 ---
+        ApplyGhostColorFeedback(ghostGO, status, _isSnapped);
 
         // --- 4. Placement ---
         if (mouse.leftButton.wasPressedThisFrame)
@@ -605,20 +1081,20 @@ public class BuildingManager : MonoBehaviour
         Vector3 center  = bounds.center;
         Vector3 halfExt = bounds.extents + Vector3.one * 0.15f; // slightly larger
 
-        int supportMask = LayerMask.GetMask("Ground", "Building", "Terrain", "Default");
-        Collider[] hits = Physics.OverlapBox(center, halfExt, ghostGO.transform.rotation, supportMask);
+        // ★ 4.15-23: 지형/건물만 검사 (Default 제거 — 플레이어 충돌 방지)
+        int supportMask = LayerMask.GetMask("Ground", "Building", "Terrain");
+        Collider[] hits = Physics.OverlapBox(center, halfExt, ghostGO.transform.rotation, supportMask, QueryTriggerInteraction.Ignore);
 
         foreach (var col in hits)
         {
-            // Skip the ghost itself (Ignore Raycast layer)
             if (col.gameObject.layer == LayerMask.NameToLayer("Ignore Raycast")) continue;
-            // Skip same ghost children
             if (col.transform.IsChildOf(ghostGO.transform)) continue;
+            // ★ 4.15-23: 플레이어 본체 무시
+            if (_playerRoot != null && col.transform.root == _playerRoot) continue;
 
             int layer = col.gameObject.layer;
             if (layer == _groundLayer || layer == _buildingLayer ||
-                layer == LayerMask.NameToLayer("Terrain") ||
-                layer == LayerMask.NameToLayer("Default"))
+                layer == LayerMask.NameToLayer("Terrain"))
             {
                 return true; // Touching ground or building → supported
             }
@@ -687,34 +1163,70 @@ public class BuildingManager : MonoBehaviour
     }
 
     /// <summary>
+    /// ★ 3단 컨러 피드백: 스냅+Valid=진한초록, 비스냅+Valid=연한초록, Invalid=빨강
+    /// MaterialPropertyBlock 기반으로 GC 0, 인스턴싱 이슈 없음.
+    /// </summary>
+    private void ApplyGhostColorFeedback(GameObject ghostGO, PlacementStatus status, bool isSnapped)
+    {
+        // ★ Fix 5: 상태가 바뀌었을 때만 SetPropertyBlock 호출
+        int newState = (status == PlacementStatus.Valid) ? (isSnapped ? 0 : 1) : 2;
+        if (newState == _prevColorState) return;
+        _prevColorState = newState;
+
+        Renderer[] renderers = ghostGO.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0) return;
+
+        Color color;
+        switch (newState)
+        {
+            case 0:  color = new Color(0f, 0.9f, 0f, 0.6f);    break; // 진한 초록 (Snapped+Valid)
+            case 1:  color = new Color(0.3f, 0.8f, 0.3f, 0.4f); break; // 연한 초록 (Unsnapped+Valid)
+            default: color = new Color(1f, 0.2f, 0.2f, 0.5f);   break; // 빨강 (Invalid)
+        }
+
+        foreach (var rend in renderers)
+        {
+            if (rend == null) continue;
+            rend.GetPropertyBlock(_mpb);
+            if (rend.sharedMaterial != null && rend.sharedMaterial.HasProperty("_BaseColor"))
+                _mpb.SetColor(ColorProp, color);
+            else
+                _mpb.SetColor("_Color", color);
+            rend.SetPropertyBlock(_mpb);
+        }
+    }
+
+    /// <summary>
     /// Returns true if the ghost overlaps another Building collider (penetration).
     /// Uses a slightly SHRUNK bounding box to allow edge-touching without triggering.
     /// </summary>
     private bool CheckOverlap(GameObject ghostGO)
     {
-        _debugOverlapColliderName = "None"; // Reset
+        _debugOverlapColliderName = "None";
 
         Renderer rend = ghostGO.GetComponentInChildren<Renderer>();
         if (rend == null) return false;
 
         Bounds  bounds  = rend.bounds;
         Vector3 center  = bounds.center;
-        // Shrink by 0.05 on each axis so edge-touching doesn't count as overlap
-        Vector3 halfExt = bounds.extents - Vector3.one * 0.05f;
+        Vector3 halfExt = bounds.extents * 0.95f;
         if (halfExt.x < 0.01f) halfExt.x = 0.01f;
         if (halfExt.y < 0.01f) halfExt.y = 0.01f;
         if (halfExt.z < 0.01f) halfExt.z = 0.01f;
 
+        // ★ 4.15-23: 트리거 무시 추가
         int buildMask = LayerMask.GetMask("Building");
-        Collider[] hits = Physics.OverlapBox(center, halfExt, ghostGO.transform.rotation, buildMask);
+        Collider[] hits = Physics.OverlapBox(center, halfExt, ghostGO.transform.rotation, buildMask, QueryTriggerInteraction.Ignore);
 
         foreach (var col in hits)
         {
             if (col.transform.IsChildOf(ghostGO.transform)) continue;
             if (col.gameObject.layer == LayerMask.NameToLayer("Ignore Raycast")) continue;
+            // ★ 4.15-23: 플레이어 본체 무시
+            if (_playerRoot != null && col.transform.root == _playerRoot) continue;
             
-            _debugOverlapColliderName = col.name; // Record the name for debug
-            return true; // Overlapping another building
+            _debugOverlapColliderName = col.name;
+            return true;
         }
         return false;
     }
@@ -725,30 +1237,58 @@ public class BuildingManager : MonoBehaviour
     // Debug GUI
     // ═══════════════════════════════════════════════════════════════════════════
 
+    // ★ Fix 6: Release 빌드에서 HUD 미표시
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private void OnGUI()
     {
         if (!showSnapDebug || !isBuildMode) return;
 
-        Rect rect = new Rect(10, Screen.height / 2 - 100, 300, 160);
-        GUI.Box(rect, "Snap Parameter Debugger");
+        Rect rect = new Rect(10, Screen.height / 2 - 120, 320, 260);
+        GUI.Box(rect, "Build Debug Panel");
 
-        GUILayout.BeginArea(new Rect(20, Screen.height / 2 - 80, 280, 140));
-        GUILayout.Label($"Target Sockets: {_debugTargetCount}");
-        GUILayout.Label($"Snap Status: {_debugSnapStatus}");
-        GUILayout.Label($"Best Dist: {_debugBestDist:F3} / Limit: 0.5");
-        GUILayout.Label($"Best Align: {_debugBestAlign:F3}");
-        GUILayout.Label($"Best Score: {_debugBestScore:F3}");
-        
-        GUI.color = _debugPlacementStatus == "Valid" ? Color.green : Color.red;
-        GUILayout.Label($"Place Status: {_debugPlacementStatus}");
-        if (_debugPlacementStatus == "OverlapReject")
-        {
-            GUILayout.Label($"Overlap with: {_debugOverlapColliderName}");
-        }
+        GUILayout.BeginArea(new Rect(20, Screen.height / 2 - 100, 300, 240));
+
+        // ★ 상태 요약
+        GUI.color = _lastPlacementStatus == PlacementStatus.Valid ? Color.green : Color.red;
+        GUILayout.Label($"Status: {_lastPlacementStatus}  |  Snapped: {_isSnapped}");
         GUI.color = Color.white;
-        
+
+        // 소켓 카운트
+        var currentGhost = GetCurrentGhostPrefab();
+        int ghostSocketCount = 0;
+        if (currentGhost != null)
+        {
+            var bp = currentGhost.GetComponent<BuildingPiece>();
+            ghostSocketCount = bp != null ? bp.CachedSockets.Count
+                : currentGhost.GetComponentsInChildren<SnapPoint>(true).Length;
+        }
+        GUILayout.Label($"Ghost Sockets: {ghostSocketCount}  |  Target Sockets: {_debugTargetCount}");
+
+        // 스냅 상세
+        GUILayout.Label($"Snap: {_debugSnapStatus}");
+        GUILayout.Label($"Dist: {_debugBestDist:F3}  |  Align: {_debugBestAlign:F3}  |  Score: {_debugBestScore:F3}");
+
+        // ★ 정합 오차 (스냅 성공 시)
+        if (_isSnapped)
+        {
+            GUI.color = _debugAlignError > 0.01f ? Color.yellow : Color.green;
+            GUILayout.Label($"Align Error: {_debugAlignError:F4}m{(_debugAlignError > 0.01f ? " ⚠ HIGH" : " ✓")}");
+            GUI.color = Color.white;
+        }
+
+        // 배치 상태
+        if (_debugPlacementStatus != "Valid")
+        {
+            GUI.color = Color.red;
+            GUILayout.Label($"Place: {_debugPlacementStatus}");
+            if (_debugPlacementStatus == "Overlap")
+                GUILayout.Label($"  Overlap: {_debugOverlapColliderName}");
+            GUI.color = Color.white;
+        }
+
         GUILayout.EndArea();
     }
+#endif
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Smart Snap — Position + Rotation alignment (Legacy/Advanced)
@@ -775,7 +1315,7 @@ public class BuildingManager : MonoBehaviour
             return (hit.point, Quaternion.identity, false);
 
         // --- 3. Find compatible ghost socket (distance-based) -----------------
-        SnapPoint[] ghostSockets = ghostGO.GetComponentsInChildren<SnapPoint>();
+        SnapPoint[] ghostSockets = ghostGO.GetComponentsInChildren<SnapPoint>(true);
         SnapPoint bestGhostSocket = null;
         float bestGhostDist = float.MaxValue;
 
@@ -798,12 +1338,11 @@ public class BuildingManager : MonoBehaviour
         Vector3    targetUp  =  bestTarget.transform.up;
         Quaternion snapRot   =  Quaternion.LookRotation(targetFwd, targetUp);
 
-        // Compensate for ghost socket's own local rotation
-        Quaternion finalRot = snapRot * Quaternion.Inverse(bestGhostSocket.transform.localRotation);
-
-        // Apply user wheel rotation around target socket's up axis
-        if (!Mathf.Approximately(currentYRotation, 0f))
-            finalRot = Quaternion.AngleAxis(currentYRotation, bestTarget.transform.up) * finalRot;
+        // ★ 3단계 정합 (Legacy path)
+        Vector3 legacyUp = (bestTarget.snapType == SnapType.Roof)
+            ? bestTarget.transform.up : Vector3.up;
+        Quaternion legacyStep = Quaternion.AngleAxis(rotationStepIndex * 90f, legacyUp);
+        Quaternion finalRot = legacyStep * snapRot * Quaternion.Inverse(bestGhostSocket.transform.localRotation);
 
         // --- 5. Compute position: socket-to-socket offset ---------------------
         Transform targetSocket = bestTarget.transform;
@@ -828,16 +1367,45 @@ public class BuildingManager : MonoBehaviour
     // Public API
     // ═══════════════════════════════════════════════════════════════════════════
 
+    private void SpawnGhost()
+    {
+        if (_currentGhostInstance != null)
+        {
+            Destroy(_currentGhostInstance);
+            _currentGhostInstance = null;
+        }
+
+        if (availablePieces == null || availablePieces.Count == 0) return;
+        var asset = availablePieces[selectedIndex].ghostPrefab;
+        if (asset != null)
+        {
+            _currentGhostInstance = Instantiate(asset);
+            _currentGhostInstance.name = asset.name.Replace("_Instance", "") + "_Instance";
+            _currentGhostInstance.transform.rotation = Quaternion.identity;
+            
+            SafeLockGhost(_currentGhostInstance);
+            _currentGhostInstance.SetActive(true);
+            
+            foreach (var r in _currentGhostInstance.GetComponentsInChildren<Renderer>(true))
+                if (r != null) r.enabled = true;
+
+            // ★ 스무딩 변수 초기화 — 새 고스트가 즉시 마우스 위치로 이동
+            _smoothVelocity = Vector3.zero;
+            _lastValidPos = _currentGhostInstance.transform.position;
+            _lastValidRot = Quaternion.identity;
+            _prevColorState = -1;
+
+            Debug.Log($"[BuildingManager] 씬에 고스트 생성 완료: {_currentGhostInstance.name}");
+        }
+    }
+
     public void SelectPiece(int index)
     {
         if (availablePieces == null || availablePieces.Count == 0) return;
         index = Mathf.Clamp(index, 0, availablePieces.Count - 1);
 
-        var old = GetCurrentGhostPrefab();
-        if (old != null) old.SetActive(false);
-
         selectedIndex = index;
-        currentYRotation = 0f;
+        rotationStepIndex = 0;
         _isSnapped = false;
 
         // UI Highlight
@@ -854,20 +1422,27 @@ public class BuildingManager : MonoBehaviour
 
         if (isBuildMode)
         {
-            var next = GetCurrentGhostPrefab();
-            if (next != null)
-            {
-                next.SetActive(true);
-                next.transform.rotation = Quaternion.identity;
-            }
+            SpawnGhost();
         }
         Debug.Log($"[BuildingManager] Piece [{index}]: {availablePieces[index].pieceName}");
     }
 
     public void ToggleBuildMode()
     {
+        bool previousState = isBuildMode;
         isBuildMode = !isBuildMode;
-        if (buildingUI) buildingUI.ToggleUI(isBuildMode);
+        
+        Debug.Log($"[UI DIAGNOSTICS] ToggleBuildMode Called. Previous: {previousState}, New: {isBuildMode}");
+        
+        if (buildingUI) 
+        {
+            Debug.Log($"[UI DIAGNOSTICS] buildingUI is NOT null. Calling buildingUI.ToggleUI({isBuildMode})");
+            buildingUI.ToggleUI(isBuildMode);
+        }
+        else
+        {
+            Debug.LogWarning("[UI DIAGNOSTICS] buildingUI reference is NULL!");
+        }
 
         if (isBuildMode)
         {
@@ -875,9 +1450,17 @@ public class BuildingManager : MonoBehaviour
             Cursor.lockState = CursorLockMode.Confined;
             if (_camInputBridge) _camInputBridge.enabled = false;
             if (_cameraZoom)     _cameraZoom.enabled     = false;
-            var g = GetCurrentGhostPrefab();
-            if (g) g.SetActive(true);
-            if (buildingUIPanel != null) buildingUIPanel.SetActive(true);
+            
+            if (buildingUIPanel != null) 
+            {
+                Debug.Log($"[UI DIAGNOSTICS] buildingUIPanel is NOT null. Current activeSelf: {buildingUIPanel.activeSelf}. Setting to TRUE.");
+                buildingUIPanel.SetActive(true);
+                Debug.Log($"[UI DIAGNOSTICS] buildingUIPanel activeSelf after SetActive: {buildingUIPanel.activeSelf}");
+            }
+            else
+            {
+                Debug.LogWarning("[UI DIAGNOSTICS] buildingUIPanel reference is NULL!");
+            }
         }
         else
         {
@@ -885,11 +1468,23 @@ public class BuildingManager : MonoBehaviour
             Cursor.lockState = CursorLockMode.Locked;
             if (_camInputBridge) _camInputBridge.enabled = true;
             if (_cameraZoom)     _cameraZoom.enabled     = true;
-            foreach (var p in availablePieces)
-                if (p.ghostPrefab) p.ghostPrefab.SetActive(false);
+            
+            if (_currentGhostInstance != null)
+            {
+                Destroy(_currentGhostInstance);
+                _currentGhostInstance = null;
+            }
+            
             _isSnapped = false;
-            if (buildingUIPanel != null) buildingUIPanel.SetActive(false);
+            
+            if (buildingUIPanel != null) 
+            {
+                Debug.Log($"[UI DIAGNOSTICS] buildingUIPanel is NOT null. Setting to FALSE.");
+                buildingUIPanel.SetActive(false);
+            }
+            
             if (_snapMarker != null) _snapMarker.SetActive(false);
+            if (_ghostMarker != null) _ghostMarker.SetActive(false);
         }
         Debug.Log($"[BuildingManager] Build Mode: {isBuildMode}");
     }
@@ -913,9 +1508,7 @@ public class BuildingManager : MonoBehaviour
     // Helpers
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private GameObject GetCurrentGhostPrefab() =>
-        (availablePieces != null && availablePieces.Count > 0)
-            ? availablePieces[selectedIndex].ghostPrefab : null;
+    private GameObject GetCurrentGhostPrefab() => _currentGhostInstance;
 
     private GameObject GetCurrentRealPrefab() =>
         (availablePieces != null && availablePieces.Count > 0)
@@ -925,9 +1518,9 @@ public class BuildingManager : MonoBehaviour
     {
         Quaternion rot;
         if (_isSnapped && _snapTargetSocket != null)
-            rot = Quaternion.AngleAxis(currentYRotation, _snapTargetSocket.up) * Quaternion.identity;
+            rot = Quaternion.AngleAxis(rotationStepIndex * 90f, _snapTargetSocket.up) * Quaternion.identity;
         else
-            rot = Quaternion.Euler(0, currentYRotation, 0);
+            rot = Quaternion.AngleAxis(rotationStepIndex * 90f, Vector3.up);
 
         var g = GetCurrentGhostPrefab();
         if (g != null) g.transform.rotation = rot;
@@ -942,7 +1535,7 @@ public class BuildingManager : MonoBehaviour
         var go = Instantiate(data.prefab);
         currentGhost = go.AddComponent<BuildingGhost>();
         currentGhost.Setup(ghostMaterialValid, ghostMaterialInvalid);
-        currentYRotation = 0f;
+        rotationStepIndex = 0;
         go.transform.rotation = Quaternion.identity;
     }
 
@@ -1011,9 +1604,9 @@ public class BuildingManager : MonoBehaviour
     private void CancelBuilding()
     {
         if (currentGhost != null) { Destroy(currentGhost.gameObject); currentGhost = null; }
+        if (_currentGhostInstance != null) { Destroy(_currentGhostInstance); _currentGhostInstance = null; }
         selectedPiece = null; isBuildMode = false; _isSnapped = false;
         Cursor.visible = false; Cursor.lockState = CursorLockMode.Locked;
-        foreach (var p in availablePieces) if (p.ghostPrefab) p.ghostPrefab.SetActive(false);
         Debug.Log("[BuildingManager] Cancelled");
     }
 
@@ -1069,5 +1662,73 @@ public class BuildingManager : MonoBehaviour
             if (d < minD) { minD = d; best = s; }
         }
         return best;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Helpers
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private Bounds CalculateGhostWorldBounds(GameObject ghost)
+    {
+        Collider[] colliders = ghost.GetComponentsInChildren<Collider>(true);
+        if (colliders.Length == 0)
+        {
+            return new Bounds(ghost.transform.position, Vector3.zero);
+        }
+
+        Bounds b = colliders[0].bounds;
+        for (int i = 1; i < colliders.Length; i++)
+        {
+            b.Encapsulate(colliders[i].bounds);
+        }
+        return b;
+    }
+
+    // ★ 4.15-12: 고스트 무적화(투명화) 처리
+    // 고스트가 레이캐스트를 스스로 막거나 플레이어를 밀어내는 현상을 원천 방어합니다.
+    private void SafeLockGhost(GameObject ghostObj)
+    {
+        if (ghostObj == null) return;
+        
+        // 1. 모든 Collider 강제 비활성화
+        var colliders = ghostObj.GetComponentsInChildren<Collider>(true);
+        foreach (var c in colliders)
+        {
+            c.enabled = false;
+        }
+
+        // 2. 자신과 자식들의 레이어를 Ignore Raycast(2)로 강제 변경
+        Transform[] allChildren = ghostObj.GetComponentsInChildren<Transform>(true);
+        foreach (var t in allChildren)
+        {
+            t.gameObject.layer = 2; // Ignore Raycast
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Visual Debugging: 소켓 위치를 씬(Scene) 창에서 눈으로 확인
+    // ═══════════════════════════════════════════════════════════════════════════
+    private void OnDrawGizmos()
+    {
+        // 타겟 소켓 그리기 (파란색 구 + 시안색 방향선)
+        if (_isSnapped && _snapTargetSocket != null)
+        {
+            Gizmos.color = Color.blue;
+            Gizmos.DrawSphere(_snapTargetSocket.position, 0.2f);
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawRay(_snapTargetSocket.position, _snapTargetSocket.forward * 1f);
+        }
+
+        // 고스트의 RootSocket 그리기 (빨간색 구)
+        var ghostGO = GetCurrentGhostPrefab();
+        if (ghostGO != null)
+        {
+            Transform rootSocket = ghostGO.transform.Find("RootSocket");
+            if (rootSocket != null)
+            {
+                Gizmos.color = Color.red;
+                Gizmos.DrawSphere(rootSocket.position, 0.2f);
+            }
+        }
     }
 }
