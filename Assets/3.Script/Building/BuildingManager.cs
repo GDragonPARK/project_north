@@ -399,7 +399,20 @@ public class BuildingManager : MonoBehaviour
             else
             {
                 // [자유 배치(Free Placement)] — 스냅 실패 시에만 실행
+                // ★ 4.15-62: Wall 계열 파묻힘 방지 — hit.point에 높이 오프셋 자동 보정
                 targetPos = bestHit.point;
+                bool isWallPiece = false;
+                if (selectedPiece != null && selectedPiece.displayName != null &&
+                    selectedPiece.displayName.ToLower().Contains("wall"))
+                {
+                    isWallPiece = true;
+                }
+                else if (availablePieces.Count > 0 && selectedIndex < availablePieces.Count)
+                {
+                    string pname = availablePieces[selectedIndex].pieceName ?? "";
+                    if (pname.ToLower().Contains("wall")) isWallPiece = true;
+                }
+                if (isWallPiece) targetPos += Vector3.up * 1.5f; // Scale 3.0 기준 절반 높이 보정
                 targetRot = Quaternion.Euler(0, rotationStepIndex * 90f, 0);
             }
 
@@ -455,13 +468,16 @@ public class BuildingManager : MonoBehaviour
 
         if (enableMagneticSnap)
         {
-            // 1.5f 반경, ~0 (모든 레이어) 강제 검색
-            int count = Physics.OverlapSphereNonAlloc(hit.point, 1.5f, _magneticSnapHits, ~0, QueryTriggerInteraction.Collide);
+            // ★ 5.1-05: 광역 자석 — 반경 2.5f, hit.point + 높이 보정(+0.5f) 이중 탐색
+            // 바닥 메시가 Raycast를 가릴 때도 바닥 모서리 SnapPoint를 안정적으로 감지
+            Vector3 searchCenter = hit.point + Vector3.up * 0.5f;
+            int count = Physics.OverlapSphereNonAlloc(searchCenter, 2.5f, _magneticSnapHits, ~0, QueryTriggerInteraction.Collide);
             
             if (enableSnapDebug)
             {
-                // Debug.Log($"[SNAP] overlap count={count}");
+                Debug.Log($"[SNAP-MAGNET] search={searchCenter:F2} overlap count={count}");
             }
+
             
             if (count > 0)
             {
@@ -502,60 +518,49 @@ public class BuildingManager : MonoBehaviour
                         if (fallback.Length > 0) ghostSockets = fallback;
                     }
 
-                    if (ghostSockets != null && ghostSockets.Count > 0)
+                // ★ 5.1-11: Valheim 방식 스냅 — 타겟 건축물 회전 상속 + 소켓 월드 오프셋 포개기
+                if (ghostSockets != null && ghostSockets.Count > 0)
+                {
+                    // --- [Step 1] 고스트 소켓 선택 ---
+                    // 호환 타입 필터 → hit.point와 가장 가까운 고스트 소켓 선택
+                    SnapPoint chosenGhost = null;
+                    float bestGhostDist = float.MaxValue;
+                    foreach (var gp in ghostSockets)
                     {
-                        SnapPoint chosenGhost = null;
-                        float bestGhostDist = float.MaxValue;
-
-                        // 기준 소켓 찾기: 가장 타겟에 가까운 것 매칭 (마우스 위치 기준에 가까워지도록 유도)
-                        for (int i = 0; i < ghostSockets.Count; i++)
-                        {
-                            var gp = ghostSockets[i];
-                            // 고스트의 소켓들이 겹쳐있을 수 있으므로 hit.point와 가까운 타겟을 기준으로 검사
-                            float dist = Vector3.Distance(chosenTarget.transform.position, gp.transform.position);
-                            if (dist < bestGhostDist)
-                            {
-                                bestGhostDist = dist;
-                                chosenGhost = gp;
-                            }
-                        }
-
-                        if (chosenGhost != null)
-                        {
-                            // 3. 절대 정렬 공식 (Absolute Alignment - Scale Independent)
-                            Transform rootSocket = ghostGO.transform.Find("RootSocket");
-                            if (rootSocket != null && chosenTarget != null)
-                            {
-                                // 1. 회전 정렬: 타겟 소켓의 월드 회전을 기준으로 고스트의 회전을 역산하여 일치시킴
-                                ghostGO.transform.rotation = chosenTarget.transform.rotation * Quaternion.Inverse(rootSocket.localRotation);
-
-                                // 2. 위치 정렬: [핵심] 현재 회전된 고스트의 '루트'와 '소켓' 사이의 '실제 월드 거리'를 구함
-                                Vector3 currentWorldOffset = ghostGO.transform.position - rootSocket.position;
-                                
-                                // 3. 타겟 소켓 위치에 그 월드 거리만큼 더해서 고스트 전체를 한 번에 이동
-                                pos = chosenTarget.transform.position + currentWorldOffset;
-                                rot = ghostGO.transform.rotation;
-                            }
-                            else
-                            {
-                                // RootSocket이 없는 프리팹 폴백
-                                ghostGO.transform.rotation = chosenTarget.transform.rotation * Quaternion.Inverse(chosenGhost.transform.localRotation);
-                                Vector3 currentWorldOffset = ghostGO.transform.position - chosenGhost.transform.position;
-                                pos = chosenTarget.transform.position + currentWorldOffset;
-                                rot = ghostGO.transform.rotation;
-                            }
-
-                            if (enableSnapDebug)
-                            {
-                                Debug.Log($"[UNIVERSAL SOCKET SNAP] target={chosenTarget.name} finalPos={pos}");
-                            }
-
-                            _isSnapped = true;
-                            _snapTargetSocket = chosenTarget.transform;
-                            _stickyGhost = chosenGhost;
-                            return;
-                        }
+                        if (!gp.CanConnectTo(chosenTarget)) continue;
+                        float d = Vector3.Distance(gp.transform.position, hit.point);
+                        if (d < bestGhostDist) { bestGhostDist = d; chosenGhost = gp; }
                     }
+                    // 호환 소켓 없으면 첫 번째 소켓으로 폴백
+                    if (chosenGhost == null) chosenGhost = ghostSockets[0];
+
+                    // --- [Step 2] 회전 확정 — 타겟 부모 회전 상속 + 유저 스텝 ---
+                    // ★ 핵심: finalRot을 먼저 확정해야 정확한 오프셋 역산 가능
+                    Transform targetParent = chosenTarget.transform.parent;
+                    Quaternion baseRot = (targetParent != null)
+                        ? targetParent.rotation
+                        : Quaternion.identity;
+                    Quaternion finalRot = baseRot * Quaternion.Euler(0, rotationStepIndex * 90f, 0);
+                    rot = finalRot;
+                    ghostGO.transform.rotation = finalRot;
+
+                    // --- [Step 3] 위치 역산 — finalRot * 로컬오프셋 ---
+                    // ★ 5.1-12: 회전 확정 후, 로컬 좌표를 월드로 변환하여 오차 없는 포개기
+                    // rotatedOffset = 최종 회전된 상태에서 내 소켓이 고스트 중심에서 떨어진 실제 월드 거리
+                    Vector3 rotatedOffset = finalRot * chosenGhost.transform.localPosition;
+                    pos = chosenTarget.transform.position - rotatedOffset;
+                    ghostGO.transform.position = pos;
+
+                    if (enableSnapDebug)
+                    {
+                        Debug.Log($"[VALHEIM-SNAP] target={chosenTarget.name} mySocket={chosenGhost.name} pos={pos:F3} rot={rot.eulerAngles:F1}");
+                    }
+
+                    _isSnapped = true;
+                    _snapTargetSocket = chosenTarget.transform;
+                    _stickyGhost = chosenGhost;
+                    return;
+                }
                 }
             }
         }
