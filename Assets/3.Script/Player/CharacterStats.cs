@@ -44,16 +44,20 @@ public class CharacterStats : MonoBehaviour
             {
                 Debug.LogWarning($"[CharacterStats] Duplicate detected on {gameObject.name}. Destroying COMPONENT only.");
                 Destroy(this); // Only destroy the script, not the object
+                return;
             }
         }
         
         currentHealth = maxHealth;
         currentStamina = maxStamina;
+    }
 
+    void Start()
+    {
         // Auto-Setup UI
         if (staminaBar == null)
         {
-             GameObject go = GameObject.Find("StaminaBar"); 
+             GameObject go = GameObject.Find("StaminaBar_Fill"); 
              if (go) staminaBar = go.GetComponent<Image>();
              if (!go)
              {
@@ -61,14 +65,20 @@ public class CharacterStats : MonoBehaviour
                  if (go) staminaBar = go.GetComponent<Image>();
              }
         }
+        
+        // Force initial UI update
+        UpdateUI();
     }
 
     void Update()
     {
         CheckRestingConditions();
         HandleRegeneration();
+        // [AbsoluteFix] 하드코딩된 스태미나 바 업데이트 강제 주입
+        if (staminaBar != null) staminaBar.fillAmount = currentStamina / maxStamina;
         UpdateUI();
     }
+
 
     private void CheckRestingConditions()
     {
@@ -131,6 +141,18 @@ public class CharacterStats : MonoBehaviour
     {
         if (isExhausted) return false;
         return currentStamina >= amount;
+    }
+
+    public bool ConsumeStamina(float amount)
+    {
+        if (currentStamina >= amount)
+        {
+            currentStamina -= amount;
+            if (currentStamina <= 0) isExhausted = true;
+            UpdateUI();
+            return true;
+        }
+        return false;
     }
 
     public void Heal(float amount)

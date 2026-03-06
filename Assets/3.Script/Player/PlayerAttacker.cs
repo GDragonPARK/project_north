@@ -3,47 +3,8 @@ using UnityEngine.InputSystem;
 
 public class PlayerAttacker : MonoBehaviour
 {
-    public Animator animator;
-    public AxeInteraction axeScript; // Changed from WeaponDamageController
-    public float attackCooldown = 1.0f;
-    
-    private float lastAttackTime;
-
-    private void Start()
-    {
-        if (animator == null) animator = GetComponent<Animator>();
-        // Auto-find AxeInteraction
-        if (axeScript == null) axeScript = GetComponentInChildren<AxeInteraction>();
-    }
-
-    private void Update()
-    {
-        if (Mouse.current.leftButton.wasPressedThisFrame && Time.time > lastAttackTime + attackCooldown)
-        {
-            Attack();
-        }
-    }
-
-    private void Attack()
-    {
-        lastAttackTime = Time.time;
-        
-        if (animator) animator.SetTrigger("Attack");
-        
-        // Damage Window
-        StartCoroutine(DamageWindowRoutine());
-    }
-
-    private System.Collections.IEnumerator DamageWindowRoutine()
-    {
-        // Windup
-        yield return new WaitForSeconds(0.4f); // Slightly longer aligned with anim
-        
-        if (axeScript) axeScript.EnableHit();
-        
-        // Active
-        yield return new WaitForSeconds(0.3f);
-        
-        if (axeScript) axeScript.DisableHit();
-    }
+    // [Phase 8.3-3] 구형 공격 제어 로직 삭제
+    // ThirdPersonController가 공격(AttackCheck)과 트리거를 모두 전담하므로 이 스크립트는 무효화함.
+    // 기존에 Update에서 마우스 좌클릭 시 무조건 SetTrigger("Attack")을 쏴서 렌치 스윙 시 
+    // 도끼 애니메이션이 섞여 나오는 치명적 난입 버그(Rogue Trigger)의 원인이었음.
 }

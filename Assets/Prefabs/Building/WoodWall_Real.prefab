@@ -1,76 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &1937352706789389826
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 9019158622621496782}
-  - component: {fileID: 6831830308225832458}
-  - component: {fileID: 5903973525392834642}
-  m_Layer: 0
-  m_Name: Wall_Back
-  m_TagString: SnapPoint
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &9019158622621496782
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1937352706789389826}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 1, z: 0, w: -0.00000004371139}
-  m_LocalPosition: {x: 0, y: 0, z: -0.5}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 7733037254267184458}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &6831830308225832458
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1937352706789389826}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 687c2f4472309b24c944c613539b7a36, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
-  socketId: Wall_Back
-  snapType: 1
-  snapRadius: 0.25
-  isOccupied: 0
-  compatibleTypes: 01000000
---- !u!135 &5903973525392834642
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1937352706789389826}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &2414158310815147797
 GameObject:
   m_ObjectHideFlags: 0
@@ -118,7 +47,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
   socketId: Wall_Top
   snapType: 1
-  snapRadius: 0.25
+  snapRadius: 0.3
   isOccupied: 0
   compatibleTypes: 0000000001000000
 --- !u!135 &7909232686346694130
@@ -128,77 +57,6 @@ SphereCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2414158310815147797}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!1 &4370676129854634900
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 4072781297830994111}
-  - component: {fileID: 801942923580507964}
-  - component: {fileID: 97140813365428802}
-  m_Layer: 0
-  m_Name: Wall_Front
-  m_TagString: SnapPoint
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &4072781297830994111
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4370676129854634900}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0.5}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 7733037254267184458}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &801942923580507964
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4370676129854634900}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 687c2f4472309b24c944c613539b7a36, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
-  socketId: Wall_Front
-  snapType: 1
-  snapRadius: 0.25
-  isOccupied: 0
-  compatibleTypes: 01000000
---- !u!135 &97140813365428802
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4370676129854634900}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -260,7 +118,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
   socketId: Wall_Bottom
   snapType: 1
-  snapRadius: 0.25
+  snapRadius: 0.3
   isOccupied: 0
   compatibleTypes: 0000000001000000
 --- !u!135 &5314563019410497323
@@ -331,7 +189,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
   socketId: Wall_Right
   snapType: 1
-  snapRadius: 0.25
+  snapRadius: 0.3
   isOccupied: 0
   compatibleTypes: 0000000001000000
 --- !u!135 &4265438213186915584
@@ -367,6 +225,7 @@ GameObject:
   - component: {fileID: 4399604178808574616}
   - component: {fileID: 2857239551093496560}
   - component: {fileID: 620794621858313138}
+  - component: {fileID: 5239578092548908338}
   m_Layer: 12
   m_Name: WoodWall_Real
   m_TagString: Untagged
@@ -391,8 +250,6 @@ Transform:
   - {fileID: 2469876766065216049}
   - {fileID: 961197078470181379}
   - {fileID: 5539637974455914293}
-  - {fileID: 4072781297830994111}
-  - {fileID: 9019158622621496782}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &4399604178808574616
@@ -472,6 +329,28 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &5239578092548908338
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8476026531824430532}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5864f50c5071534288be30cd18205a2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BuildingPiece
+  snapPoints: []
+  snapSockets: []
+  data: {fileID: 0}
+  breakEffectPrefab: {fileID: 7283711549063107861, guid: 0aaecd148ddcb2d4ab3a7720de827835, type: 3}
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 768
+  maxStabilitySteps: 6
+  currentStabilityStep: 0
+  isInitialized: 0
 --- !u!1 &8650209604569406283
 GameObject:
   m_ObjectHideFlags: 0
@@ -519,7 +398,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
   socketId: Wall_Left
   snapType: 1
-  snapRadius: 0.25
+  snapRadius: 0.3
   isOccupied: 0
   compatibleTypes: 0000000001000000
 --- !u!135 &5913297583470594889

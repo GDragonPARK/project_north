@@ -11,9 +11,9 @@ GameObject:
   - component: {fileID: 6245215109090048171}
   - component: {fileID: 2466489085906317159}
   - component: {fileID: 7081039114670942413}
-  m_Layer: 11
+  m_Layer: 0
   m_Name: Floor_N
-  m_TagString: Untagged
+  m_TagString: SnapPoint
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -47,7 +47,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
   socketId: Floor_N
   snapType: 0
-  snapRadius: 0.25
+  snapRadius: 0.3
   isOccupied: 0
   compatibleTypes: 010000000200000000000000
 --- !u!135 &7081039114670942413
@@ -82,9 +82,9 @@ GameObject:
   - component: {fileID: 6546663475083321675}
   - component: {fileID: 5194150871579149817}
   - component: {fileID: 2543632827703256655}
-  m_Layer: 11
+  m_Layer: 0
   m_Name: Floor_E
-  m_TagString: Untagged
+  m_TagString: SnapPoint
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -118,7 +118,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
   socketId: Floor_E
   snapType: 0
-  snapRadius: 0.25
+  snapRadius: 0.3
   isOccupied: 0
   compatibleTypes: 010000000200000000000000
 --- !u!135 &2543632827703256655
@@ -153,9 +153,9 @@ GameObject:
   - component: {fileID: 7325155814515230851}
   - component: {fileID: 1465398264465245870}
   - component: {fileID: 4256755017490664083}
-  m_Layer: 11
+  m_Layer: 0
   m_Name: Floor_W
-  m_TagString: Untagged
+  m_TagString: SnapPoint
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -189,7 +189,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
   socketId: Floor_W
   snapType: 0
-  snapRadius: 0.25
+  snapRadius: 0.3
   isOccupied: 0
   compatibleTypes: 010000000200000000000000
 --- !u!135 &4256755017490664083
@@ -224,9 +224,9 @@ GameObject:
   - component: {fileID: 354766010582199390}
   - component: {fileID: 3019525359114424319}
   - component: {fileID: 236826736653614082}
-  m_Layer: 11
+  m_Layer: 0
   m_Name: Floor_S
-  m_TagString: Untagged
+  m_TagString: SnapPoint
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -260,7 +260,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SnapPoint
   socketId: Floor_S
   snapType: 0
-  snapRadius: 0.25
+  snapRadius: 0.3
   isOccupied: 0
   compatibleTypes: 010000000200000000000000
 --- !u!135 &236826736653614082
@@ -296,6 +296,7 @@ GameObject:
   - component: {fileID: 8513792810926683517}
   - component: {fileID: 5332277029571400078}
   - component: {fileID: 2411134140028156983}
+  - component: {fileID: 8743557772527541807}
   m_Layer: 12
   m_Name: WoodFloor_Real
   m_TagString: Untagged
@@ -399,3 +400,25 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &8743557772527541807
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6692950907614000675}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5864f50c5071534288be30cd18205a2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BuildingPiece
+  snapPoints: []
+  snapSockets: []
+  data: {fileID: 0}
+  breakEffectPrefab: {fileID: 7283711549063107861, guid: 0aaecd148ddcb2d4ab3a7720de827835, type: 3}
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 768
+  maxStabilitySteps: 6
+  currentStabilityStep: 0
+  isInitialized: 0

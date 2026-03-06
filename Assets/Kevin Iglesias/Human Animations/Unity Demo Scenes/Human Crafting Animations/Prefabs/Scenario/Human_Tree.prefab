@@ -81,6 +81,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 3889005549918921189}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5910812638499364603}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6201141352921477587}
   m_SourcePrefab: {fileID: 100100000, guid: d4ed73c2ef2b8af4ca2536c35e7f84f3, type: 3}
 --- !u!23 &4833284280422951967 stripped
 MeshRenderer:
@@ -159,3 +165,42 @@ CapsuleCollider:
   m_Height: 5
   m_Direction: 1
   m_Center: {x: 0, y: 2.5, z: 0}
+--- !u!114 &5910812638499364603
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6346620816837922250}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 186ad26ebda65e942a7eb24d24dfdaed, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HealthSystem
+  maxHealth: 100
+  m_currentHealth: 0
+  OnDamage:
+    m_PersistentCalls:
+      m_Calls: []
+  OnDeath:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &6201141352921477587
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6346620816837922250}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b225ce00b3696ab4aa9b5ada83e752f5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TreeFelling
+  fallForce: 15
+  hitSound: {fileID: 8300000, guid: d88916745aafbc549af81f90d22811dc, type: 3}
+  fallSound: {fileID: 8300000, guid: 133b0581ad29b424881fff5937b3e61a, type: 3}
+  hitEffectPrefab: {fileID: 7283711549063107861, guid: 0aaecd148ddcb2d4ab3a7720de827835, type: 3}
+  woodChipPoolTag: WoodChip
+  fallenTreePrefab: {fileID: 0}
+  logPrefab: {fileID: 0}

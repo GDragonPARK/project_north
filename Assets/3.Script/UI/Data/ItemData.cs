@@ -31,7 +31,12 @@ public class ItemData : ScriptableObject
     public float attackRange = 2f;
     public int woodCost = 0; // Cost for building (used by BuildManager)
     
-    [Header("Prefabs")]
+    [Header("Stack")]
+    public int amount = 1;      // 현재 보유(적재) 수량
+    public int maxStack = 50;   // 최대 중첩 수량
+
+    
+[Header("Prefabs")]
     public GameObject itemPrefab; // Used for dropping/building?
     public GameObject weaponPrefab; // Used for equipping visuals
 }

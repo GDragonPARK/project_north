@@ -1,4 +1,4 @@
-﻿ using UnityEngine;
+ using UnityEngine;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
@@ -107,6 +107,13 @@ namespace StarterAssets
         private StarterAssetsInputs _input;
         private GameObject _mainCamera;
         
+        [Header("Combat State")]
+        public bool isAttacking = false;
+
+        
+[Header("Combat SFX")]
+        public AudioClip weaponSwingSound;
+
         [Header("Combat")]
         public WeaponDamageController CurrentWeapon;
 
@@ -481,36 +488,92 @@ namespace StarterAssets
                 AudioSource.PlayClipAtPoint(LandingAudioClip, transform.TransformPoint(_controller.center), FootstepAudioVolume);
             }
         }
-        private void AttackCheck()
+private void AttackCheck()
         {
-            if (_input.attack)
-            {
-                if (CharacterStats.Instance != null && !CharacterStats.Instance.HasEnoughStamina(CharacterStats.Instance.actionCost))
-                {
-                    Debug.Log("Not enough stamina to attack!");
-                    _input.attack = false;
-                    return;
-                }
+            if (!_input.attack) return;
+            _input.attack = false; // 입력 즉시 소비
 
+            var equipment = GetComponent<EquipmentManager>();
+            ToolType tool = equipment != null ? equipment.currentTool : ToolType.Axe;
+
+            // [None] 맨손 상태 — 아무 애니메이션 없음
+            if (tool == ToolType.None) return;
+
+            // [Hammer] 렌치 한 손 스윙 — 데미지/히트박스 없음
+            if (tool == ToolType.Hammer)
+            {
                 if (_hasAnimator)
                 {
-                    // Cost check passed logic
-                    if (CharacterStats.Instance != null) 
-                        CharacterStats.Instance.UseStamina(CharacterStats.Instance.actionCost);
+                    // [Phase 8.3-2] 트리거 큐 난입 방지 (대기 중인 도끼 공격 트리거 강제 삭제)
+                    _animator.ResetTrigger("TriggerHarvest");
+                    _animator.ResetTrigger(_animIDAttack);
+                    
+                    _animator.CrossFade("hammer_Swing", 0.1f);
+                }
+                if (weaponSwingSound != null)
+                    AudioSource.PlayClipAtPoint(weaponSwingSound, transform.position, 0.7f);
+                Debug.Log("[AttackCheck] Hammer Swing");
+                return;
+            }
 
-                    if (CurrentWeapon && CurrentWeapon.toolType == ToolType.Axe)
-                    {
-                         _animator.SetTrigger("TriggerHarvest");
-                         Debug.Log("Harvest (Chop) Triggered!");
-                    }
-                    else
-                    {
-                        _animator.SetTrigger(_animIDAttack);
-                        Debug.Log("Attack Triggered!");
+            // [Axe] 양손 도끼 — 스태미나 체크 + 히트박스 활성화
+            if (CharacterStats.Instance != null)
+            {
+                if (!CharacterStats.Instance.ConsumeStamina(15f))
+                {
+                    Debug.LogWarning("스태미나가 부족합니다!");
+                    return;
+                }
+            }
+
+            if (_hasAnimator)
+            {
+
+                isAttacking = true;
+                CancelInvoke(nameof(ResetAttackState));
+                Invoke(nameof(ResetAttackState), 0.5f);
+
+                if (weaponSwingSound != null)
+                    AudioSource.PlayClipAtPoint(weaponSwingSound, transform.position, 1.0f);
+
+                if (CurrentWeapon && CurrentWeapon.toolType == ToolType.Axe)
+                {
+                    _animator.SetTrigger("TriggerHarvest");
+                    Debug.Log("[AttackCheck] Axe Harvest Triggered");
+                    
+                    // [AbsoluteFix Phase 11.12-2] 하드코딩된 스태미나 삭감 로직 강제 정착
+                    var stats = UnityEngine.Object.FindAnyObjectByType<CharacterStats>();
+                    if(stats != null) {
+                        stats.currentStamina -= 15f;
+                        if(stats.currentStamina < 0) stats.currentStamina = 0;
                     }
                 }
-                _input.attack = false; // Reset input immediately
+                else
+                {
+                    _animator.SetTrigger(_animIDAttack);
+                    Debug.Log("[AttackCheck] Attack Triggered");
+                    
+                    // [AbsoluteFix Phase 11.12-2] 하드코딩된 스태미나 삭감 로직 강제 정착
+                    var stats = UnityEngine.Object.FindAnyObjectByType<CharacterStats>();
+                    if(stats != null) {
+                        stats.currentStamina -= 15f;
+                        if(stats.currentStamina < 0) stats.currentStamina = 0;
+                    }
+                }
             }
+        }
+
+
+        /// <summary>[Phase 8.3] 렌치(Hammer) 건축 동작 시 한 손 애니메이션 재생</summary>
+        public void PlayBuildAnimation()
+        {
+            if (_hasAnimator)
+                _animator.CrossFade("hammer_Swing", 0.1f);
+        }
+
+        private void ResetAttackState()
+        {
+            isAttacking = false;
         }
 
         // Called by Animation Event

@@ -269,7 +269,13 @@ MonoBehaviour:
   RotationSmoothTime: 0.05
   SpeedChangeRate: 10
   LandingAudioClip: {fileID: 8300000, guid: ff697d3070687ce4583faa0561a145a2, type: 3}
-  FootstepAudioClips: []
+  FootstepAudioClips:
+  - {fileID: 8300000, guid: 30b244788491e0645a9b03dfff09d992, type: 3}
+  - {fileID: 8300000, guid: cbf51609f15440a438ea4ed6c177d6dc, type: 3}
+  - {fileID: 8300000, guid: 8e7322c9bb355684bbbbd6c2a5bef27c, type: 3}
+  - {fileID: 8300000, guid: f9f35a0cf1f2a8249b2d0ac92e189e3c, type: 3}
+  - {fileID: 8300000, guid: 16580e8abce6b614eb133989b6711737, type: 3}
+  - {fileID: 8300000, guid: 610c9fc5eaee49644a975ffd6353b275, type: 3}
   FootstepAudioVolume: 0.5
   JumpHeight: 1.2
   Gravity: -15
@@ -286,6 +292,7 @@ MonoBehaviour:
   BottomClamp: -30
   CameraAngleOverride: 0
   LockCameraPosition: 0
+  weaponSwingSound: {fileID: 8300000, guid: a4b463b5e1176c444addb704e0f481cf, type: 3}
   CurrentWeapon: {fileID: 0}
   quickSlots:
   - {fileID: 0}

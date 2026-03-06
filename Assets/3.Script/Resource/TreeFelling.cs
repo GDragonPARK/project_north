@@ -11,16 +11,15 @@ public class TreeFelling : MonoBehaviour
     private bool m_isFelled = false;
     private Rigidbody m_rb;
 
-    [Header("Visuals & Drops")]
-    public string woodChipPoolTag = "WoodChip"; // Tag for ObjectPool
-    public GameObject fallenTreePrefab; // The prefab to swap to
-    public GameObject logPrefab; // Legacy field for WoodcuttingSetupV2 compatibility
+    [Header("SFX")]
+    public AudioClip hitSound;   // 도끼로 찍을 때 나는 소리
+    public AudioClip fallSound;  // 나무가 쓰러질 때 나는 소리
 
-    
-    // Optional: If you still want logs from the fallen tree itself, 
-    // but the user plan says the *new* fallen tree will handle loot via FallenTreeLoot.cs
-    // We will keep this for backward compatibility or direct spawning if needed, 
-    // but mainly the new prefab should have the logic.
+    [Header("Visuals & Drops")]
+    public GameObject hitEffectPrefab;
+    public string woodChipPoolTag = "WoodChip";
+    public GameObject fallenTreePrefab;
+    public GameObject logPrefab;
 
     private void Start()
     {
@@ -28,18 +27,14 @@ public class TreeFelling : MonoBehaviour
         if (m_healthSystem == null)
         {
             m_healthSystem = gameObject.AddComponent<HealthSystem>();
-            m_healthSystem.maxHealth = 100f; 
+            m_healthSystem.maxHealth = 100f;
         }
-        
+
         if (m_healthSystem)
         {
             m_healthSystem.OnDamage.AddListener(OnTreeHit);
             m_healthSystem.OnDeath.AddListener(FellTree);
         }
-
-        // Standing tree does NOT need a Rigidbody or Convex MeshCollider usually, 
-        // as it is static terrain detail until fell.
-        // We leave it as is or ensure it's static.
     }
 
     private void OnDestroy()
@@ -56,17 +51,28 @@ public class TreeFelling : MonoBehaviour
         if (m_isFelled) return;
 
         if (ObjectPoolManager.Instance != null)
-        {
             ObjectPoolManager.Instance.SpawnFromPool(woodChipPoolTag, hitPosition, Quaternion.LookRotation(Vector3.up));
-        }
     }
 
-    public void TakeDamage(float damage, Vector3 hitPosition)
+    public void TakeDamage(float damage, Vector3 hitPoint)
     {
         if (m_healthSystem)
-        {
-            m_healthSystem.TakeDamage(damage, hitPosition);
-        }
+            m_healthSystem.TakeDamage(damage, hitPoint);
+    }
+
+    /// <summary>[Phase 7.1 + Phase 8.1] 도끼 등 무기에서 호출. 3D 타격음 재생 포함.</summary>
+    public void TakeDamage(int damage, Vector3 hitPoint, Vector3 hitDirection)
+    {
+        if (m_isFelled) return;
+
+        if (hitEffectPrefab != null)
+            Instantiate(hitEffectPrefab, hitPoint, Quaternion.identity);
+
+        if (hitSound != null)
+            AudioSource.PlayClipAtPoint(hitSound, hitPoint, 1.0f);
+
+        if (m_healthSystem)
+            m_healthSystem.TakeDamage(damage, hitPoint);
     }
 
     private void FellTree(Vector3 hitPosition)
@@ -75,45 +81,40 @@ public class TreeFelling : MonoBehaviour
         m_isFelled = true;
         Debug.Log("<color=orange>Tree Falling (Swap)!</color>");
 
+        if (fallSound != null)
+            AudioSource.PlayClipAtPoint(fallSound, transform.position, 1.0f);
+
         if (fallenTreePrefab != null)
         {
-            // 1. Swap Model
-            // Instantiate the fallen version at the exact same transform
             GameObject fallenTree = Instantiate(fallenTreePrefab, transform.position, transform.rotation);
-            
-            // 2. Scale Inheritance
             fallenTree.transform.localScale = transform.localScale;
 
-            // 3. Physics Setup (Ensure it falls)
             Rigidbody rb = fallenTree.GetComponent<Rigidbody>();
             if (rb == null) rb = fallenTree.AddComponent<Rigidbody>();
-            rb.mass = 100f; // Reasonable weight
+            rb.mass = 100f;
             rb.isKinematic = false;
             rb.useGravity = true;
 
             MeshCollider mc = fallenTree.GetComponent<MeshCollider>();
             if (mc == null) mc = fallenTree.AddComponent<MeshCollider>();
-            mc.convex = true; // Essential for physics
-            
-            // 4. Force Application
+            mc.convex = true;
+
             Vector3 fallDir = (transform.position - hitPosition).normalized;
-            fallDir.y = 0; 
+            fallDir.y = 0;
             rb.AddForceAtPosition(fallDir * fallForce, transform.position + Vector3.up * 5f, ForceMode.Impulse);
             rb.AddTorque(transform.right * fallForce * 0.5f, ForceMode.Impulse);
 
-            // 5. Loot & Lifecycle
-            // Attach loot script if missing
-            if (fallenTree.GetComponent<FallenTreeLoot>() == null)
-            {
-                fallenTree.AddComponent<FallenTreeLoot>();
-            }
+            FallenLog fallenLog = fallenTree.GetComponent<FallenLog>();
+            if (fallenLog == null) fallenLog = fallenTree.AddComponent<FallenLog>();
+
+            if (logPrefab != null && fallenLog.lootPrefab == null)
+                fallenLog.lootPrefab = logPrefab;
         }
         else
         {
             Debug.LogError($"[TreeFelling] 'fallenTreePrefab' is not assigned on {name}! Cannot swap.");
         }
 
-        // Destroy the static standing tree
         Destroy(gameObject);
     }
 }

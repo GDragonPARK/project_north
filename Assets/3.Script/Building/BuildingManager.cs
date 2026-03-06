@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
+using StarterAssets;
+
 
 [System.Flags]
 public enum PlacementRule
@@ -59,6 +61,7 @@ public class BuildingManager : MonoBehaviour
 
     [Header("Debug")]
     public bool showSnapDebug = true;
+    public bool debugFreeBuild = true; // Phase 10.7: 인스펙터에서 즉시 무한 건축 가능한 디버그 토글
 
     // Diagnostic states
     private string _debugSnapStatus = "None";
@@ -331,7 +334,7 @@ public class BuildingManager : MonoBehaviour
         var ghostGO = GetCurrentGhostPrefab();
         if (ghostGO == null)
         {
-            Debug.LogWarning("[BuildingManager] LateUpdate: _currentGhostInstance 필드가 NULL입니다! (추적 불가)");
+            // [Phase 10.2-1] 아무것도 들고 있지 않을 때의 무한 경고 로그 도배 차단 (조용히 리턴)
             return;
         }
 
@@ -473,10 +476,11 @@ public class BuildingManager : MonoBehaviour
             Vector3 searchCenter = hit.point + Vector3.up * 0.5f;
             int count = Physics.OverlapSphereNonAlloc(searchCenter, 2.5f, _magneticSnapHits, ~0, QueryTriggerInteraction.Collide);
             
-            if (enableSnapDebug)
-            {
-                Debug.Log($"[SNAP-MAGNET] search={searchCenter:F2} overlap count={count}");
-            }
+            // [Log Disabled] 매 프레임 콘솔 마비 방지 — 필요 시 enableSnapDebug 주석 해제
+            // if (enableSnapDebug)
+            // {
+            //     Debug.Log($"[SNAP-MAGNET] search={searchCenter:F2} overlap count={count}");
+            // }
 
             
             if (count > 0)
@@ -522,43 +526,106 @@ public class BuildingManager : MonoBehaviour
                 if (ghostSockets != null && ghostSockets.Count > 0)
                 {
                     // --- [Step 1] 고스트 소켓 선택 ---
-                    // 호환 타입 필터 → hit.point와 가장 가까운 고스트 소켓 선택
-                    SnapPoint chosenGhost = null;
-                    float bestGhostDist = float.MaxValue;
-                    foreach (var gp in ghostSockets)
-                    {
-                        if (!gp.CanConnectTo(chosenTarget)) continue;
-                        float d = Vector3.Distance(gp.transform.position, hit.point);
-                        if (d < bestGhostDist) { bestGhostDist = d; chosenGhost = gp; }
-                    }
-                    // 호환 소켓 없으면 첫 번째 소켓으로 폴백
-                    if (chosenGhost == null) chosenGhost = ghostSockets[0];
-
-                    // --- [Step 2] 회전 확정 — 타겟 부모 회전 상속 + 유저 스텝 ---
-                    // ★ 핵심: finalRot을 먼저 확정해야 정확한 오프셋 역산 가능
-                    Transform targetParent = chosenTarget.transform.parent;
-                    Quaternion baseRot = (targetParent != null)
-                        ? targetParent.rotation
+                    Transform targetParentPre = chosenTarget.transform.parent;
+                    Quaternion baseRotPre = (targetParentPre != null)
+                        ? targetParentPre.rotation
                         : Quaternion.identity;
-                    Quaternion finalRot = baseRot * Quaternion.Euler(0, rotationStepIndex * 90f, 0);
-                    rot = finalRot;
-                    ghostGO.transform.rotation = finalRot;
+                    Quaternion finalRotPre = baseRotPre * Quaternion.Euler(0, rotationStepIndex * 90f, 0);
 
-                    // --- [Step 3] 위치 역산 — finalRot * 로컬오프셋 ---
-                    // ★ 5.1-12: 회전 확정 후, 로컬 좌표를 월드로 변환하여 오차 없는 포개기
-                    // rotatedOffset = 최종 회전된 상태에서 내 소켓이 고스트 중심에서 떨어진 실제 월드 거리
-                    Vector3 rotatedOffset = finalRot * chosenGhost.transform.localPosition;
-                    pos = chosenTarget.transform.position - rotatedOffset;
+                    // 0. 마우스 휠 회전 선적용
+                    ghostGO.transform.rotation = finalRotPre;
+
+                    string tName = chosenTarget.name.ToLower();
+                    string gPrefab = ghostGO.name.ToLower();
+
+                    // 1. 유니티 Transform 불신, '이름' 기반 절대 방향 창조
+                    Vector3 GetSemanticDir(string n) {
+                        if (n.Contains("_n") || n.Contains("front")) return new Vector3(0, 0, 1);
+                        if (n.Contains("_s") || n.Contains("back")) return new Vector3(0, 0, -1);
+                        if (n.Contains("_e") || n.Contains("right") || n.Contains("_r")) return new Vector3(1, 0, 0);
+                        if (n.Contains("_w") || n.Contains("left") || n.Contains("_l")) return new Vector3(-1, 0, 0);
+                        if (n.Contains("top")) return new Vector3(0, 1, 0);
+                        if (n.Contains("bot")) return new Vector3(0, -1, 0);
+                        return Vector3.forward;
+                    }
+
+                    Vector3 tOutward = chosenTarget.transform.parent.rotation * GetSemanticDir(tName);
+                    if (tName.Contains("floor")) { tOutward.y = 0; tOutward.Normalize(); }
+
+                    Transform chosenGhost = null;
+                    float bestScore = float.MaxValue;
+
+                    // 2. 고스트 자석 스캔 및 채점
+                    foreach (var gp in ghostSockets) {
+                        if (gp.transform.parent != ghostGO.transform) continue; // 가짜 자석 차단 필터
+
+                        string gName = gp.name.ToLower();
+                        bool isValid = false;
+                        bool forceMatch = false;
+
+                        // --- 완벽한 타입 필터링 ---
+                        if (tName.Contains("floor")) {
+                            if (gPrefab.Contains("floor") && gName.Contains("floor")) isValid = true;
+                            if (gPrefab.Contains("wall") && gName.Contains("bot")) { isValid = true; forceMatch = true; } // 바닥->벽 크로스
+                            if (gPrefab.Contains("roof") && gName.Contains("bot")) { isValid = true; forceMatch = true; } // 바닥->지붕 크로스
+                        }
+                        else if (tName.Contains("top")) {
+                            if (gPrefab.Contains("wall") && gName.Contains("bot")) isValid = true;
+                            if (gPrefab.Contains("roof") && gName.Contains("bot")) isValid = true;
+                        }
+                        else if (tName.Contains("bot")) {
+                            if (gPrefab.Contains("wall") && gName.Contains("top")) isValid = true;
+                        }
+                        else if (tName.Contains("left") || tName.Contains("right")) {
+                            if (gPrefab.Contains("wall") && (gName.Contains("left") || gName.Contains("right"))) isValid = true;
+                        }
+                        else if (tName.Contains("roof")) {
+                            if (gPrefab.Contains("roof")) isValid = true; // 지붕->지붕 (forceMatch 없음! 오직 방향으로만 승부)
+                        }
+
+                        if (!isValid) continue;
+
+                        // --- 내적(Dot) 채점 ---
+                        Vector3 gOutward = finalRotPre * GetSemanticDir(gName);
+                        if (gPrefab.Contains("floor")) { gOutward.y = 0; gOutward.Normalize(); }
+
+                        float dot = Vector3.Dot(tOutward, gOutward);
+
+                        // 크로스 결합(수직) 시에만 강제로 최고점 부여
+                        if (forceMatch) dot = -1f;
+
+                        // 점수 합산 (바디 매스 시뮬레이션 + 방향 절대 우위)
+                        Vector3 simulatedGhostCenter = chosenTarget.transform.position - (gp.transform.position - ghostGO.transform.position);
+                        float distToHit = Vector3.Distance(simulatedGhostCenter, hit.point);
+                        float score = (dot * 100f) + distToHit;
+
+                        if (score < bestScore) {
+                            bestScore = score;
+                            chosenGhost = gp.transform;
+                        }
+                    }
+
+                    if (chosenGhost == null) chosenGhost = ghostSockets[0].transform;
+
+                    // 3. 밀어내기 없는 1:1 완벽 포개기 (오차율 0%)
+                    Vector3 finalOffset = chosenGhost.position - ghostGO.transform.position;
+                    pos = chosenTarget.transform.position - finalOffset;
+
+                    // [절대 회전 방어선]
+                    // 베이스 스크립트의 억지 방향 정렬(Auto-Align)을 무력화하고, 유저의 휠 회전(finalRotPre)을 100% 영구 보존합니다.
+                    rot = finalRotPre;
+                    ghostGO.transform.rotation = finalRotPre;
                     ghostGO.transform.position = pos;
 
-                    if (enableSnapDebug)
-                    {
-                        Debug.Log($"[VALHEIM-SNAP] target={chosenTarget.name} mySocket={chosenGhost.name} pos={pos:F3} rot={rot.eulerAngles:F1}");
-                    }
+                    // [Log Disabled] 매 프레임 콘솔 마비 방지 — 필요 시 enableSnapDebug 주석 해제
+                    // if (enableSnapDebug)
+                    // {
+                    //     Debug.Log($"[VALHEIM-SNAP] target={chosenTarget.name} mySocket={chosenGhost.name} pos={pos:F3} rot={rot.eulerAngles:F1}");
+                    // }
 
                     _isSnapped = true;
                     _snapTargetSocket = chosenTarget.transform;
-                    _stickyGhost = chosenGhost;
+                    _stickyGhost = chosenGhost.GetComponent<SnapPoint>();
                     return;
                 }
                 }
@@ -872,7 +939,8 @@ public class BuildingManager : MonoBehaviour
                 
                 // Apply delta to Cinemachine axes. Inverse X for natural feel if needed
                 _freeLookCam.m_XAxis.Value += delta.x * cameraRotationSpeedMultiplier;
-                _freeLookCam.m_YAxis.Value -= delta.y * (cameraRotationSpeedMultiplier * 0.01f);
+                // [Phase 6.1-3] 상하 시야각 확장: 배율 상향(0.01f→0.0035f), Clamp01 유지하되 민감도 개선
+                _freeLookCam.m_YAxis.Value -= delta.y * (cameraRotationSpeedMultiplier * 0.0035f);
                 _freeLookCam.m_YAxis.Value = Mathf.Clamp01(_freeLookCam.m_YAxis.Value);
             }
         }
@@ -1045,11 +1113,52 @@ public class BuildingManager : MonoBehaviour
 
             if (isValid)
             {
+                // [Phase 11.5] 건축 스태미나 소모 (건축 1회당 10 소모)
+                if (CharacterStats.Instance != null && !debugFreeBuild)
+                {
+                    if (!CharacterStats.Instance.ConsumeStamina(10f))
+                    {
+                        Debug.LogWarning("<color=orange>[Building]</color> 스태미나가 부족하여 건축할 수 없습니다!");
+                        return;
+                    }
+                }
+
                 var real = GetCurrentRealPrefab();
                 if (real != null)
                 {
+                    // [Phase 9.1] 자원 비용 검사 (Phase 10.7 디버그 무료 버전 추가)
+                    var bp = real.GetComponent<BuildingPiece>();
+                    if (bp != null && InventorySystem.Instance != null && !debugFreeBuild)
+                    {
+                        string requiredItem   = bp.requiredItemName;
+                        int    requiredAmount = bp.requiredAmount;
+
+                        if (!InventorySystem.Instance.HasItem(requiredItem, requiredAmount))
+                        {
+                            Debug.LogWarning($"<color=red>[Building]</color> 자원이 부족합니다! 필요 자원: {requiredItem} x{requiredAmount}");
+                            return;
+                        }
+                        InventorySystem.Instance.ConsumeItem(requiredItem, requiredAmount);
+                    }
+                    else if (debugFreeBuild)
+                    {
+                        // 자원 소모 없이 통과
+                        //Debug.Log($"[BuildingManager] (디버그 모드) {real.name} 자원 소모 무효화");
+                    }
+
                     var newObj = Instantiate(real, ghostGO.transform.position, ghostGO.transform.rotation);
                     Debug.Log($"[BuildingManager] Placed {real.name} @ {ghostGO.transform.position}");
+
+                    // [Phase 8.3] 렌치(Hammer) 장착 시 한 손 건축 애니메이션 재생
+                    if (_playerRoot != null)
+                    {
+                        var tpc = _playerRoot.GetComponent<ThirdPersonController>();
+                        tpc?.PlayBuildAnimation();
+                    }
+
+                    // [Phase 6.1-5] BuildingStability 통합 완료 — BuildingPiece.CalculateAndShowStability() 직접 호출
+                    var piece = newObj.GetComponent<BuildingPiece>();
+                    if (piece != null) piece.CalculateAndShowStability();
 
                     if (placeVFX) Instantiate(placeVFX, ghostGO.transform.position, ghostGO.transform.rotation);
                     if (placeSound && _audioSource) _audioSource.PlayOneShot(placeSound);
@@ -1214,7 +1323,7 @@ public class BuildingManager : MonoBehaviour
 
         Bounds  bounds  = rend.bounds;
         Vector3 center  = bounds.center;
-        Vector3 halfExt = bounds.extents * 0.95f;
+        Vector3 halfExt = bounds.extents * 0.70f;
         if (halfExt.x < 0.01f) halfExt.x = 0.01f;
         if (halfExt.y < 0.01f) halfExt.y = 0.01f;
         if (halfExt.z < 0.01f) halfExt.z = 0.01f;
@@ -1557,8 +1666,7 @@ public class BuildingManager : MonoBehaviour
         var nb  = Instantiate(selectedPiece.prefab, pos, rot);
         var bp  = nb.AddComponent<BuildingPiece>();
         bp.data = selectedPiece;
-        bp.CheckGroundedStatus();
-        bp.PropagateStabilityUpdate(new HashSet<int>());
+        bp.CalculateAndShowStability();
         ConsumeCost(selectedPiece);
         BuildingFeedback.Instance?.PlayPlaceSound(pos);
         BuildingFeedback.Instance?.SpawnPlaceVFX(pos);

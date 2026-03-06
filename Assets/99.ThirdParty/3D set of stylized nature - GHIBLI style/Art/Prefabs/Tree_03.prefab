@@ -125,6 +125,8 @@ GameObject:
   - component: {fileID: -2655568462266154258}
   - component: {fileID: -7291398433997903533}
   - component: {fileID: 2731912621235681035}
+  - component: {fileID: 5396099672415767321}
+  - component: {fileID: 749506250448710478}
   m_Layer: 0
   m_Name: Tree_03
   m_TagString: Untagged
@@ -214,6 +216,45 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 5, z: 1}
   m_Center: {x: 0, y: 2.5, z: 0}
+--- !u!114 &5396099672415767321
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2704845279297483752}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 186ad26ebda65e942a7eb24d24dfdaed, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HealthSystem
+  maxHealth: 100
+  m_currentHealth: 0
+  OnDamage:
+    m_PersistentCalls:
+      m_Calls: []
+  OnDeath:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &749506250448710478
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2704845279297483752}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b225ce00b3696ab4aa9b5ada83e752f5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TreeFelling
+  fallForce: 15
+  hitSound: {fileID: 8300000, guid: d88916745aafbc549af81f90d22811dc, type: 3}
+  fallSound: {fileID: 8300000, guid: 133b0581ad29b424881fff5937b3e61a, type: 3}
+  hitEffectPrefab: {fileID: 7283711549063107861, guid: 0aaecd148ddcb2d4ab3a7720de827835, type: 3}
+  woodChipPoolTag: WoodChip
+  fallenTreePrefab: {fileID: 0}
+  logPrefab: {fileID: 0}
 --- !u!1 &6272199107158785099
 GameObject:
   m_ObjectHideFlags: 0

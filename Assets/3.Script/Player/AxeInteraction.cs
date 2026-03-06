@@ -1,4 +1,6 @@
 using UnityEngine;
+using StarterAssets;
+
 
 public class AxeInteraction : MonoBehaviour
 {
@@ -23,29 +25,24 @@ public class AxeInteraction : MonoBehaviour
         }
     }
 
-    private void OnTriggerEnter(Collider other)
+private void OnTriggerEnter(Collider other)
     {
-        // Debug.Log($"[Axe] Hit: {other.name}");
+        // [Phase 9.2] 공격 중이 아니면 데미지 무시
+        var controller = GetComponentInParent<ThirdPersonController>();
+        if (controller != null && !controller.isAttacking) return;
 
         ResourceNode node = other.GetComponent<ResourceNode>();
         if (node == null) node = other.GetComponentInParent<ResourceNode>();
 
         if (node != null)
         {
-            Vector3 hitPoint = transform.position;
-            
-            // Safety Check
+            Vector3 hitPoint;
             if (other is MeshCollider mc && !mc.convex)
-            {
                 hitPoint = other.bounds.ClosestPoint(transform.position);
-            }
             else
-            {
                 hitPoint = other.ClosestPoint(transform.position);
-            }
 
             Vector3 dir = (hitPoint - transform.position).normalized;
-            
             Debug.Log($"[Axe] Tree Hit! Damage: {damage}");
             node.GetHit(damage, hitPoint, dir);
         }

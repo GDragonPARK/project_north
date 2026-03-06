@@ -98,6 +98,49 @@ public class InventorySystem : MonoBehaviour
         return true;
     }
 
+/// <summary>[Phase 9.1] itemName 문자열로 보유 수량 확인</summary>
+    public bool HasItem(string itemName, int amount)
+    {
+        int count = 0;
+        foreach (var item in inventoryList)
+        {
+            if (item != null && item.itemName == itemName) count++;
+            if (count >= amount) return true;
+        }
+        return false;
+    }
+
+    /// <summary>[Phase 9.1] itemName 문자열로 아이템 amount개 차감 후 UI 이벤트 발생</summary>
+/// <summary>[Phase 9.1 Fixed] itemName으로 amount만큼 정확히 차감. 잔량이 0 이하일 때만 슬롯 제거.</summary>
+    public bool ConsumeItem(string itemName, int amount)
+    {
+        if (!HasItem(itemName, amount)) return false;
+
+        int remaining = amount;
+        for (int i = inventoryList.Count - 1; i >= 0 && remaining > 0; i--)
+        {
+            var item = inventoryList[i];
+            if (item == null || item.itemName != itemName) continue;
+
+            if (item.amount > remaining)
+            {
+                // 수량만 차감, 슬롯 유지
+                item.amount -= remaining;
+                remaining = 0;
+            }
+            else
+            {
+                // 수량이 부족하거나 딱 떨어짐 때만 슬롯 삭제
+                remaining -= item.amount;
+                inventoryList.RemoveAt(i);
+            }
+        }
+
+        OnItemChanged?.Invoke();
+        return true;
+    }
+
+
     // Resources Compatibility (Wood)
     public bool HasResources(int woodAmount)
     {

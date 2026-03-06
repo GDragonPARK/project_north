@@ -1,98 +1,43 @@
 using UnityEngine;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 
-public class ForceFixPlayer : EditorWindow
+public class ForceFixPlayer : MonoBehaviour
 {
-    [MenuItem("Tools/Force Fix Player (NullRef Killer)")]
-    public static void ForceFix()
+    [MenuItem("Antigravity/Force Fix Player Sync (Phase 11.10)")]
+    public static void ExecuteFix()
     {
-        Debug.Log("Starting Force Fix...");
-
+        Debug.Log("<color=orange><b>[Phase 11.10 - Player Sync Fix]</b></color> Starting verification...");
+        
         GameObject player = GameObject.Find("Player_New");
-        if (player == null) player = GameObject.FindGameObjectWithTag("Player");
-        if (player == null) player = GameObject.Find("Player");
-
         if (player == null)
         {
-            Debug.LogError("CRITICAL: Player Not Found in Scene!");
+            Debug.LogError("Player_New object not found in the scene! Cannot proceed with fix.");
             return;
         }
 
-        Debug.Log($"Targeting Player: {player.name}");
-
-        // 1. Fix ThirdPersonController References
-        Component tpc = player.GetComponent("ThirdPersonController");
-        if (tpc != null)
+        // 1. CharacterStats 부착 검증 및 강제 주입
+        CharacterStats stats = player.GetComponent<CharacterStats>();
+        if (stats == null)
         {
-            SerializedObject so = new SerializedObject(tpc);
-            so.Update();
-
-            // Fix CinemachineCameraTarget
-            Transform root = player.transform.Find("PlayerCameraRoot");
-            if (root == null)
-            {
-                GameObject r = new GameObject("PlayerCameraRoot");
-                r.transform.SetParent(player.transform);
-                r.transform.localPosition = new Vector3(0, 1.375f, 0);
-                root = r.transform;
-                Debug.Log("Created missing PlayerCameraRoot");
-            }
-
-            SerializedProperty targetProp = so.FindProperty("CinemachineCameraTarget");
-            if (targetProp != null)
-            {
-                targetProp.objectReferenceValue = root.gameObject;
-                Debug.Log("Assigned CinemachineCameraTarget");
-            }
-            
-            // Fix Ground Layers
-            SerializedProperty groundProp = so.FindProperty("GroundLayers");
-            if (groundProp != null)
-            {
-                groundProp.intValue = LayerMask.GetMask("Default", "Terrain");
-                Debug.Log("Fixed Ground Layers");
-            }
-
-            so.ApplyModifiedProperties();
-        }
-        else
-        {
-            Debug.LogError("ThirdPersonController component missing!");
+            Debug.LogWarning("CharacterStats is missing from Player_New! Attaching immediately.");
+            stats = player.AddComponent<CharacterStats>();
         }
 
-        // 2. Fix Animator
-        Animator anim = player.GetComponent<Animator>();
-        if (anim != null)
-        {
-            // Controller
-            if (anim.runtimeAnimatorController == null || !anim.runtimeAnimatorController.name.Contains("Starter"))
-            {
-                string[] guids = AssetDatabase.FindAssets("StarterAssetsThirdPerson t:AnimatorController");
-                if (guids.Length > 0)
-                {
-                    anim.runtimeAnimatorController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(AssetDatabase.GUIDToAssetPath(guids[0]));
-                    Debug.Log("Assigned StarterAssets Controller");
-                }
-            }
-
-            // Avatar
-            if (anim.avatar == null)
-            {
-                string[] guids = AssetDatabase.FindAssets("Knight t:Avatar");
-                if (guids.Length > 0)
-                {
-                    anim.avatar = AssetDatabase.LoadAssetAtPath<Avatar>(AssetDatabase.GUIDToAssetPath(guids[0]));
-                    Debug.Log("Assigned Knight Avatar");
-                }
-            }
-        }
-
-        // 3. Mark Dirty and Save
+        // 2. 프리팹 혹은 씬 상태 더티 마킹 (저장 유도)
         EditorUtility.SetDirty(player);
-        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
-        
-        Debug.Log("Force Fix Complete. Scene Saved.");
+        if (stats != null) EditorUtility.SetDirty(stats);
+
+        // 3. (옵션) 중복 CharacterStats가 다른 곳에 있는지 스캔
+        CharacterStats[] allStats = Object.FindObjectsByType<CharacterStats>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        foreach (var s in allStats)
+        {
+            if (s.gameObject != player)
+            {
+                Debug.LogWarning($"<color=red><b>[Warning]</b></color> Found duplicate CharacterStats on {s.gameObject.name}. This may cause Singleton conflicts. Destroying component...");
+                DestroyImmediate(s);
+            }
+        }
+
+        Debug.Log("<color=cyan><b>[Player Sync Fix Complete]</b></color> CharacterStats uniqueness guaranteed and attached to Player_New.");
     }
 }

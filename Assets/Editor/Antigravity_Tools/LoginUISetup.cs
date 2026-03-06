@@ -6,7 +6,6 @@ using TMPro;
 public class LoginUISetup : EditorWindow
 {
     [MenuItem("Antigravity/Setup Login UI")]
-[MenuItem("Antigravity/Setup Login UI")]
     public static void SetupLoginUI()
     {
         var canvas = GameObject.Find("Canvas_Login");

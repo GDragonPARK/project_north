@@ -1,7 +1,7 @@
 using UnityEngine;
 
 public enum ResourceType { Tree, Rock }
-public enum ToolType { Axe, Pickaxe, None }
+public enum ToolType { Axe, Pickaxe, Hammer, Torch, None }
 
 public class ResourceObject : MonoBehaviour
 {
